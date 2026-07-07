@@ -84,13 +84,21 @@ create table if not exists public.rounds (
   fairways_hit integer check (fairways_hit >= 0),
   fairways_possible integer check (fairways_possible >= 0),
   greens_in_regulation integer check (greens_in_regulation >= 0),
+  gir_possible integer check (gir_possible >= 0),
   putts integer check (putts >= 0),
+  penalties integer check (penalties >= 0),
+  three_putts integer check (three_putts >= 0),
   notes text,
   created_at timestamptz not null default now(),
   check (
     fairways_hit is null
     or fairways_possible is null
     or fairways_hit <= fairways_possible
+  ),
+  check (
+    greens_in_regulation is null
+    or gir_possible is null
+    or greens_in_regulation <= gir_possible
   )
 );
 
