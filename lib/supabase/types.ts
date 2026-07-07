@@ -63,6 +63,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      events: {
+        Row: {
+          id: string;
+          team_id: string;
+          season_id: string | null;
+          name: string;
+          event_type:
+            | "practice"
+            | "match"
+            | "invitational"
+            | "qualifier"
+            | "tournament";
+          event_date: string;
+          course_name: string | null;
+          location: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          season_id?: string | null;
+          name: string;
+          event_type:
+            | "practice"
+            | "match"
+            | "invitational"
+            | "qualifier"
+            | "tournament";
+          event_date: string;
+          course_name?: string | null;
+          location?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          team_id?: string;
+          season_id?: string | null;
+          name?: string;
+          event_type?:
+            | "practice"
+            | "match"
+            | "invitational"
+            | "qualifier"
+            | "tournament";
+          event_date?: string;
+          course_name?: string | null;
+          location?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

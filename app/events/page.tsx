@@ -1,12 +1,10 @@
-import { PlaceholderPage } from "../../components/layout/placeholder-page";
+import { EventsList } from "../../components/events/events-list";
+import { getTeamEvents } from "../../lib/events/events";
 
-export default function EventsPage() {
-  return (
-    <PlaceholderPage
-      eyebrow="Schedule"
-      title="Events"
-      description="This page will organize practices, matches, invitationals, qualifiers, and tournaments for the season."
-      actions={[{ href: "/enter-score", label: "Enter Event Score" }]}
-    />
-  );
+export const dynamic = "force-dynamic";
+
+export default async function EventsPage() {
+  const eventsData = await getTeamEvents();
+
+  return <EventsList eventsData={eventsData} />;
 }
