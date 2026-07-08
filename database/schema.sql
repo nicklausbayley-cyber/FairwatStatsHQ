@@ -24,6 +24,11 @@ create table if not exists public.teams (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   school_name text,
+  mascot text,
+  primary_color text default '#166534',
+  secondary_color text default '#111827',
+  logo_url text,
+  contact_email text,
   created_at timestamptz not null default now()
 );
 
