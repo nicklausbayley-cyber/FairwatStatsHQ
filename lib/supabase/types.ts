@@ -14,18 +14,33 @@ export type Database = {
           id: string;
           name: string;
           school_name: string | null;
+          mascot: string | null;
+          primary_color: string | null;
+          secondary_color: string | null;
+          logo_url: string | null;
+          contact_email: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           name: string;
           school_name?: string | null;
+          mascot?: string | null;
+          primary_color?: string | null;
+          secondary_color?: string | null;
+          logo_url?: string | null;
+          contact_email?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           name?: string;
           school_name?: string | null;
+          mascot?: string | null;
+          primary_color?: string | null;
+          secondary_color?: string | null;
+          logo_url?: string | null;
+          contact_email?: string | null;
           created_at?: string;
         };
         Relationships: [];
