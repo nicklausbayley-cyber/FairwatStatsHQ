@@ -235,7 +235,7 @@ export function EventsTable({ events }: EventsTableProps) {
 
                 {isEditing ? (
                   <EditEventForm
-                    event={event}
+                    eventItem={event}
                     onCancel={() => setEditingEventId(null)}
                     onSuccess={handleEditSuccess}
                   />
@@ -250,15 +250,15 @@ export function EventsTable({ events }: EventsTableProps) {
 }
 
 function EditEventForm({
-  event,
+  eventItem,
   onCancel,
   onSuccess
 }: {
-  event: EventListRow;
+  eventItem: EventListRow;
   onCancel: () => void;
   onSuccess: (message: string) => void;
 }) {
-  const [form, setForm] = useState<FormState>(() => formStateFromEvent(event));
+  const [form, setForm] = useState<FormState>(() => formStateFromEvent(eventItem));
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -284,7 +284,7 @@ function EditEventForm({
 
     try {
       const result = await eventRequest("PATCH", {
-        id: event.currentTarget.dataset.eventId,
+        id: eventItem.id,
         name: form.name.trim(),
         eventType: form.eventType,
         eventDate: form.eventDate,
@@ -312,11 +312,7 @@ function EditEventForm({
   }
 
   return (
-    <form
-      data-event-id={event.id}
-      onSubmit={handleSubmit}
-      className="space-y-4 bg-green-50/40 px-5 py-5"
-    >
+    <form onSubmit={handleSubmit} className="space-y-4 bg-green-50/40 px-5 py-5">
       {message ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900">
           {message.text}
