@@ -30,6 +30,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      seasons: {
+        Row: {
+          id: string;
+          team_id: string;
+          name: string;
+          starts_on: string | null;
+          ends_on: string | null;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          name: string;
+          starts_on?: string | null;
+          ends_on?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          team_id?: string;
+          name?: string;
+          starts_on?: string | null;
+          ends_on?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       players: {
         Row: {
           id: string;
