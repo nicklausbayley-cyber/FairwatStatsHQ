@@ -1,16 +1,19 @@
 import Link from "next/link";
 import type { RosterData } from "../../lib/players/roster";
+import { AddPlayerForm } from "./add-player-form";
 
 type RosterListProps = {
   roster: RosterData;
   title?: string;
   eyebrow?: string;
+  showAddPlayerForm?: boolean;
 };
 
 export function RosterList({
   roster,
   title = "Roster",
-  eyebrow = "Players"
+  eyebrow = "Players",
+  showAddPlayerForm = false
 }: RosterListProps) {
   return (
     <section className="space-y-6">
@@ -36,6 +39,8 @@ export function RosterList({
           ) : null}
         </div>
       </div>
+
+      {roster.status === "ready" && showAddPlayerForm ? <AddPlayerForm /> : null}
 
       {roster.status === "error" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
