@@ -1,15 +1,10 @@
-import { PlaceholderPage } from "../../components/layout/placeholder-page";
+import { DashboardOverview } from "../../components/dashboard/dashboard-overview";
+import { getDashboardData } from "../../lib/dashboard/dashboard";
 
-export default function DashboardPage() {
-  return (
-    <PlaceholderPage
-      eyebrow="Team Overview"
-      title="Dashboard"
-      description="This page will show team scoring trends, recent rounds, upcoming events, and season highlights."
-      actions={[
-        { href: "/enter-score", label: "Enter Score" },
-        { href: "/statistics", label: "View Statistics" }
-      ]}
-    />
-  );
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const dashboardData = await getDashboardData();
+
+  return <DashboardOverview dashboardData={dashboardData} />;
 }
