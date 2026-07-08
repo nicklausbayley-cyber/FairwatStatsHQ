@@ -6,5 +6,5 @@ export const dynamic = "force-dynamic";
 export default async function EventsPage() {
   const eventsData = await getTeamEvents();
 
-  return <EventsList eventsData={eventsData} />;
+  return <EventsList eventsData={eventsData} showAddEventForm />;
 }
