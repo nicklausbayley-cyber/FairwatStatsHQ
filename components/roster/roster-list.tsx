@@ -1,6 +1,6 @@
-import Link from "next/link";
 import type { RosterData } from "../../lib/players/roster";
 import { AddPlayerForm } from "./add-player-form";
+import { RosterTable } from "./roster-table";
 
 type RosterListProps = {
   roster: RosterData;
@@ -62,55 +62,7 @@ export function RosterList({
       ) : null}
 
       {roster.status === "ready" && roster.players.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border border-green-900/10 bg-white shadow-sm">
-          <div className="hidden grid-cols-[1.4fr_1.4fr_1fr_1fr] gap-4 border-b border-gray-100 bg-green-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-green-900 sm:grid">
-            <span>First Name</span>
-            <span>Last Name</span>
-            <span>Graduation</span>
-            <span>Status</span>
-          </div>
-
-          <div className="divide-y divide-gray-100">
-            {roster.players.map((player) => (
-              <Link
-                key={player.id}
-                href={`/players/${player.id}`}
-                className="grid gap-3 px-5 py-4 text-sm transition hover:bg-green-50/60 sm:grid-cols-[1.4fr_1.4fr_1fr_1fr] sm:items-center"
-              >
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 sm:hidden">
-                    First Name
-                  </p>
-                  <p className="font-medium text-green-800">
-                    {player.first_name}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 sm:hidden">
-                    Last Name
-                  </p>
-                  <p className="text-gray-700">{player.last_name}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 sm:hidden">
-                    Graduation
-                  </p>
-                  <p className="text-gray-700">
-                    {player.graduation_year ?? "Not set"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 sm:hidden">
-                    Status
-                  </p>
-                  <span className="inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold capitalize text-green-800">
-                    {player.status}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
+        <RosterTable players={roster.players} />
       ) : null}
     </section>
   );
