@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
-import { submitRound, type SubmitRoundInput } from "./actions";
+import { useState, type FormEvent } from "react";
 
 type PlayerOption = {
   id: string;
@@ -20,6 +19,29 @@ type ScoreFormProps = {
   teamId: string;
   players: PlayerOption[];
   events: EventOption[];
+};
+
+type SubmitRoundInput = {
+  teamId: string;
+  playerId: string;
+  eventId: string | null;
+  playedOn: string;
+  holes: 9 | 18;
+  score: number;
+  par: number | null;
+  putts: number | null;
+  fairwaysHit: number | null;
+  fairwaysPossible: number | null;
+  greensInRegulation: number | null;
+  girPossible: number | null;
+  penalties: number | null;
+  threePutts: number | null;
+  notes: string | null;
+};
+
+type SubmitRoundResult = {
+  success: boolean;
+  message: string;
 };
 
 type FormState = {
@@ -95,10 +117,35 @@ function formatEventLabel(event: EventOption) {
   return `${event.name} (${event.eventDate})`;
 }
 
+async function submitRound(input: SubmitRoundInput): Promise<SubmitRoundResult> {
+  const response = await fetch("/api/rounds", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  try {
+    const result = (await response.json()) as SubmitRoundResult;
+
+    if (!response.ok && result.message) {
+      return { success: false, message: result.message };
+    }
+
+    return result;
+  } catch {
+    return {
+      success: false,
+      message: "Could not read the score submission response."
+    };
+  }
+}
+
 export function ScoreForm({ teamId, players, events }: ScoreFormProps) {
   const [form, setForm] = useState<FormState>(createInitialState);
   const [message, setMessage] = useState<FormMessage | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   function updateField(field: keyof FormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -148,7 +195,7 @@ export function ScoreForm({ teamId, players, events }: ScoreFormProps) {
     return null;
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
 
@@ -178,7 +225,9 @@ export function ScoreForm({ teamId, players, events }: ScoreFormProps) {
       return;
     }
 
-    startTransition(async () => {
+    setIsSubmitting(true);
+
+    try {
       const result = await submitRound(input);
 
       setMessage({
@@ -189,7 +238,17 @@ export function ScoreForm({ teamId, players, events }: ScoreFormProps) {
       if (result.success) {
         setForm(createInitialState());
       }
-    });
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Could not save round. Please try again."
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -329,7 +388,7 @@ export function ScoreForm({ teamId, players, events }: ScoreFormProps) {
         />
       </div>
 
-      <label className="space-y-2 block">
+      <label className="block space-y-2">
         <span className="text-sm font-semibold text-gray-700">Notes</span>
         <textarea
           value={form.notes}
@@ -346,10 +405,10 @@ export function ScoreForm({ teamId, players, events }: ScoreFormProps) {
         </p>
         <button
           type="submit"
-          disabled={isPending || players.length === 0}
+          disabled={isSubmitting || players.length === 0}
           className="rounded-md bg-green-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          {isPending ? "Submitting..." : "Submit Round"}
+          {isSubmitting ? "Submitting..." : "Submit Round"}
         </button>
       </div>
     </form>
