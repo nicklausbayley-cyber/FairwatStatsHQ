@@ -62,7 +62,10 @@ export function AddPlayerForm() {
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function updateField(field: keyof FormState, value: string) {
+  function updateField<Field extends keyof FormState>(
+    field: Field,
+    value: FormState[Field]
+  ) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
