@@ -1,7 +1,9 @@
 import type { EventsData, EventListRow } from "../../lib/events/events";
+import { AddEventForm } from "./add-event-form";
 
 type EventsListProps = {
   eventsData: EventsData;
+  showAddEventForm?: boolean;
 };
 
 const monthNames = [
@@ -36,7 +38,10 @@ function formatEventType(eventType: EventListRow["event_type"]) {
     .join(" ");
 }
 
-export function EventsList({ eventsData }: EventsListProps) {
+export function EventsList({
+  eventsData,
+  showAddEventForm = false
+}: EventsListProps) {
   return (
     <section className="space-y-6">
       <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
@@ -61,6 +66,8 @@ export function EventsList({ eventsData }: EventsListProps) {
           ) : null}
         </div>
       </div>
+
+      {eventsData.status === "ready" && showAddEventForm ? <AddEventForm /> : null}
 
       {eventsData.status === "error" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
