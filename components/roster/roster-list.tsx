@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { RosterData } from "../../lib/players/roster";
 
 type RosterListProps = {
@@ -66,15 +67,16 @@ export function RosterList({
 
           <div className="divide-y divide-gray-100">
             {roster.players.map((player) => (
-              <div
+              <Link
                 key={player.id}
-                className="grid gap-3 px-5 py-4 text-sm sm:grid-cols-[1.4fr_1.4fr_1fr_1fr] sm:items-center"
+                href={`/players/${player.id}`}
+                className="grid gap-3 px-5 py-4 text-sm transition hover:bg-green-50/60 sm:grid-cols-[1.4fr_1.4fr_1fr_1fr] sm:items-center"
               >
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 sm:hidden">
                     First Name
                   </p>
-                  <p className="font-medium text-gray-950">
+                  <p className="font-medium text-green-800">
                     {player.first_name}
                   </p>
                 </div>
@@ -100,7 +102,7 @@ export function RosterList({
                     {player.status}
                   </span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
