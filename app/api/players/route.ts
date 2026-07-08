@@ -4,6 +4,8 @@ import { createServiceRoleClient } from "../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+type PlayerStatus = "active" | "inactive";
+
 type CreatePlayerInput = {
   firstName?: string;
   lastName?: string;
@@ -16,7 +18,18 @@ type UpdatePlayerInput = CreatePlayerInput & {
   action?: "deactivate";
 };
 
-const allowedStatuses = new Set(["active", "inactive"]);
+type ValidatedPlayerDetails = {
+  firstName: string;
+  lastName: string;
+  graduationYear: number | null;
+  status: PlayerStatus;
+};
+
+type PlayerValidationResult =
+  | { error: string; player: null }
+  | { error: null; player: ValidatedPlayerDetails };
+
+const allowedStatuses = new Set<PlayerStatus>(["active", "inactive"]);
 
 function jsonResult(message: string, status = 400) {
   return NextResponse.json({ success: false, message }, { status });
@@ -38,29 +51,34 @@ function normalizeYear(value: unknown) {
   return value;
 }
 
-function validatePlayerDetails(input: CreatePlayerInput) {
+function isPlayerStatus(value: string): value is PlayerStatus {
+  return allowedStatuses.has(value as PlayerStatus);
+}
+
+function validatePlayerDetails(input: CreatePlayerInput): PlayerValidationResult {
   const firstName = input.firstName?.trim() ?? "";
   const lastName = input.lastName?.trim() ?? "";
   const graduationYear = normalizeYear(input.graduationYear);
   const status = input.status?.trim() || "active";
 
   if (!firstName) {
-    return { error: "First name is required." };
+    return { error: "First name is required.", player: null };
   }
 
   if (!lastName) {
-    return { error: "Last name is required." };
+    return { error: "Last name is required.", player: null };
   }
 
   if (graduationYear === undefined) {
-    return { error: "Graduation year must be a valid four-digit year." };
+    return { error: "Graduation year must be a valid four-digit year.", player: null };
   }
 
-  if (!allowedStatuses.has(status)) {
-    return { error: "Status must be active or inactive." };
+  if (!isPlayerStatus(status)) {
+    return { error: "Status must be active or inactive.", player: null };
   }
 
   return {
+    error: null,
     player: {
       firstName,
       lastName,
@@ -87,8 +105,8 @@ export async function POST(request: Request) {
 
   const validation = validatePlayerDetails(input);
 
-  if (validation.error || !validation.player) {
-    return jsonResult(validation.error ?? "Invalid player details.");
+  if (validation.error) {
+    return jsonResult(validation.error);
   }
 
   try {
@@ -198,8 +216,8 @@ export async function PATCH(request: Request) {
 
     const validation = validatePlayerDetails(input);
 
-    if (validation.error || !validation.player) {
-      return jsonResult(validation.error ?? "Invalid player details.");
+    if (validation.error) {
+      return jsonResult(validation.error);
     }
 
     const { player: playerDetails } = validation;
