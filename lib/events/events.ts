@@ -1,3 +1,4 @@
+import { getActiveSeasonForTeam } from "../seasons/active-season";
 import { createServiceRoleClient } from "../supabase/server";
 
 export type EventListRow = {
@@ -13,6 +14,7 @@ export type EventsData =
   | {
       status: "ready";
       teamName: string;
+      activeSeasonName: string | null;
       events: EventListRow[];
     }
   | {
@@ -49,10 +51,16 @@ export async function getTeamEvents(): Promise<EventsData> {
       };
     }
 
-    const { data: events, error: eventsError } = await supabase
+    const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
+    const eventsQuery = supabase
       .from("events")
       .select("id, name, event_type, event_date, course_name, location")
-      .eq("team_id", team.id)
+      .eq("team_id", team.id);
+
+    const { data: events, error: eventsError } = await (activeSeason
+      ? eventsQuery.eq("season_id", activeSeason.id)
+      : eventsQuery
+    )
       .order("event_date", { ascending: true })
       .order("name", { ascending: true });
 
@@ -66,6 +74,7 @@ export async function getTeamEvents(): Promise<EventsData> {
     return {
       status: "ready",
       teamName: team.name,
+      activeSeasonName: activeSeason?.name ?? null,
       events: events ?? []
     };
   } catch (error) {
