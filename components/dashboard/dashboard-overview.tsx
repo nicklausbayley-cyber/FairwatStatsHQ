@@ -65,7 +65,7 @@ function buildMetricCards(summary: DashboardSummary): MetricCard[] {
     {
       label: "Total events",
       value: summary.totalEvents.toString(),
-      helper: "Team schedule records"
+      helper: "Season schedule records"
     },
     {
       label: "Total rounds",
@@ -193,7 +193,10 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
 
   return (
     <section className="space-y-6">
-      <DashboardHeader teamName={dashboardData.teamName} />
+      <DashboardHeader
+        teamName={dashboardData.teamName}
+        activeSeasonName={dashboardData.activeSeasonName}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metricCards.map((metric) => (
@@ -230,7 +233,9 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
 
       {dashboardData.recentRounds.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          No rounds found for this team yet.
+          {dashboardData.activeSeasonName
+            ? `No rounds found for ${dashboardData.activeSeasonName} yet.`
+            : "No rounds found for this team yet."}
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-green-900/10 bg-white shadow-sm">
@@ -257,7 +262,13 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
   );
 }
 
-function DashboardHeader({ teamName }: { teamName?: string }) {
+function DashboardHeader({
+  teamName,
+  activeSeasonName
+}: {
+  teamName?: string;
+  activeSeasonName?: string | null;
+}) {
   return (
     <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
       <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
@@ -274,6 +285,11 @@ function DashboardHeader({ teamName }: { teamName?: string }) {
               : "Team scoring summaries will appear once Supabase data is available."}
           </p>
         </div>
+        {teamName ? (
+          <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+            {activeSeasonName ? `Active: ${activeSeasonName}` : "All seasons"}
+          </div>
+        ) : null}
       </div>
     </div>
   );
