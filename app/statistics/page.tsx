@@ -1,3 +1,4 @@
+import { getActiveSeasonForTeam } from "../../lib/seasons/active-season";
 import { createServiceRoleClient } from "../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,7 @@ type StatisticsState =
   | {
       status: "ready";
       teamName: string;
+      activeSeasonName: string | null;
       playerStats: PlayerStats[];
     }
   | {
@@ -138,6 +140,14 @@ async function getStatistics(): Promise<StatisticsState> {
       };
     }
 
+    const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
+    const roundsQuery = supabase
+      .from("rounds")
+      .select(
+        "player_id, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts"
+      )
+      .eq("team_id", team.id);
+
     const [playersResult, roundsResult] = await Promise.all([
       supabase
         .from("players")
@@ -145,12 +155,7 @@ async function getStatistics(): Promise<StatisticsState> {
         .eq("team_id", team.id)
         .order("last_name", { ascending: true })
         .order("first_name", { ascending: true }),
-      supabase
-        .from("rounds")
-        .select(
-          "player_id, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts"
-        )
-        .eq("team_id", team.id)
+      activeSeason ? roundsQuery.eq("season_id", activeSeason.id) : roundsQuery
     ]);
 
     if (playersResult.error) {
@@ -219,6 +224,7 @@ async function getStatistics(): Promise<StatisticsState> {
     return {
       status: "ready",
       teamName: team.name,
+      activeSeasonName: activeSeason?.name ?? null,
       playerStats
     };
   } catch (error) {
@@ -262,6 +268,7 @@ export default async function StatisticsPage() {
     <section className="space-y-6">
       <StatisticsHeader
         teamName={statistics.teamName}
+        activeSeasonName={statistics.activeSeasonName}
         playerCount={statistics.playerStats.length}
       />
 
@@ -296,9 +303,11 @@ export default async function StatisticsPage() {
 
 function StatisticsHeader({
   teamName,
+  activeSeasonName,
   playerCount
 }: {
   teamName?: string;
+  activeSeasonName?: string | null;
   playerCount?: number;
 }) {
   return (
@@ -317,11 +326,18 @@ function StatisticsHeader({
               : "Player analytics will appear once Supabase data is available."}
           </p>
         </div>
-        {typeof playerCount === "number" ? (
-          <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
-            {playerCount} players
-          </div>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {typeof playerCount === "number" ? (
+            <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+              {playerCount} players
+            </div>
+          ) : null}
+          {teamName ? (
+            <div className="rounded-md bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
+              {activeSeasonName ? `Active: ${activeSeasonName}` : "All seasons"}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
