@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getActiveSeasonForTeam } from "../../../lib/seasons/active-season";
 import { createServiceRoleClient } from "../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +59,7 @@ type PlayerProfileState =
   | {
       status: "ready";
       player: PlayerRow;
+      activeSeasonName: string | null;
       stats: PlayerStats;
       rounds: RoundWithEvent[];
     }
@@ -199,14 +201,19 @@ async function getPlayerProfile(playerId: string): Promise<PlayerProfileState> {
       };
     }
 
-    const { data: roundsData, error: roundsError } = await supabase
+    const activeSeason = await getActiveSeasonForTeam(supabase, player.team_id);
+    const roundsQuery = supabase
       .from("rounds")
       .select(
         "id, event_id, played_on, holes, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts, notes"
       )
       .eq("team_id", player.team_id)
-      .eq("player_id", player.id)
-      .order("played_on", { ascending: false });
+      .eq("player_id", player.id);
+
+    const { data: roundsData, error: roundsError } = await (activeSeason
+      ? roundsQuery.eq("season_id", activeSeason.id)
+      : roundsQuery
+    ).order("played_on", { ascending: false });
 
     if (roundsError) {
       return {
@@ -245,6 +252,7 @@ async function getPlayerProfile(playerId: string): Promise<PlayerProfileState> {
     return {
       status: "ready",
       player: player as PlayerRow,
+      activeSeasonName: activeSeason?.name ?? null,
       stats: buildStats(rounds),
       rounds: roundsWithEvents
     };
@@ -296,7 +304,10 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
 
   return (
     <section className="space-y-6">
-      <PlayerProfileHeader playerName={playerName} />
+      <PlayerProfileHeader
+        playerName={playerName}
+        activeSeasonName={profile.activeSeasonName}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
         <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm">
@@ -345,7 +356,9 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
 
       {profile.rounds.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          No rounds found for this player yet.
+          {profile.activeSeasonName
+            ? `No rounds found for this player in ${profile.activeSeasonName} yet.`
+            : "No rounds found for this player yet."}
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-green-900/10 bg-white shadow-sm">
@@ -373,7 +386,13 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   );
 }
 
-function PlayerProfileHeader({ playerName }: { playerName?: string }) {
+function PlayerProfileHeader({
+  playerName,
+  activeSeasonName
+}: {
+  playerName?: string;
+  activeSeasonName?: string | null;
+}) {
   return (
     <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
       <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
@@ -390,12 +409,19 @@ function PlayerProfileHeader({ playerName }: { playerName?: string }) {
               : "Player details will appear once Supabase data is available."}
           </p>
         </div>
-        <Link
-          href="/roster"
-          className="inline-flex rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800 transition hover:bg-green-100"
-        >
-          Back to Roster
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          {playerName ? (
+            <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+              {activeSeasonName ? `Active: ${activeSeasonName}` : "All seasons"}
+            </div>
+          ) : null}
+          <Link
+            href="/roster"
+            className="inline-flex rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800 transition hover:bg-green-100"
+          >
+            Back to Roster
+          </Link>
+        </div>
       </div>
     </div>
   );
