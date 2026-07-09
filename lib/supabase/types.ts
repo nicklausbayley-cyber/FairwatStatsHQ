@@ -159,6 +159,60 @@ export type Database = {
         };
         Relationships: [];
       };
+      courses: {
+        Row: {
+          id: string;
+          team_id: string;
+          name: string;
+          location: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          name: string;
+          location?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          team_id?: string;
+          name?: string;
+          location?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      course_holes: {
+        Row: {
+          id: string;
+          course_id: string;
+          hole_number: number;
+          par: number;
+          handicap: number | null;
+          yardage: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          course_id: string;
+          hole_number: number;
+          par: number;
+          handicap?: number | null;
+          yardage?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          course_id?: string;
+          hole_number?: number;
+          par?: number;
+          handicap?: number | null;
+          yardage?: number | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       rounds: {
         Row: {
           id: string;
@@ -221,6 +275,60 @@ export type Database = {
           penalties?: number | null;
           three_putts?: number | null;
           notes?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      round_holes: {
+        Row: {
+          id: string;
+          team_id: string;
+          round_id: string;
+          player_id: string;
+          event_id: string | null;
+          course_id: string | null;
+          hole_number: number;
+          par: number;
+          handicap: number | null;
+          score: number;
+          putts: number | null;
+          fir: boolean | null;
+          gir: boolean | null;
+          penalty: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          round_id: string;
+          player_id: string;
+          event_id?: string | null;
+          course_id?: string | null;
+          hole_number: number;
+          par: number;
+          handicap?: number | null;
+          score: number;
+          putts?: number | null;
+          fir?: boolean | null;
+          gir?: boolean | null;
+          penalty?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          team_id?: string;
+          round_id?: string;
+          player_id?: string;
+          event_id?: string | null;
+          course_id?: string | null;
+          hole_number?: number;
+          par?: number;
+          handicap?: number | null;
+          score?: number;
+          putts?: number | null;
+          fir?: boolean | null;
+          gir?: boolean | null;
+          penalty?: number | null;
           created_at?: string;
         };
         Relationships: [];
