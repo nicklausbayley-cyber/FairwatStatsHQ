@@ -1,7 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent
+} from "react";
 
 type TeamSettings = {
   name: string;
@@ -31,10 +37,12 @@ type FormMessage = {
 type TeamSettingsResult = {
   success: boolean;
   message: string;
+  logoUrl?: string | null;
 };
 
 const defaultPrimaryColor = "#166534";
 const defaultSecondaryColor = "#111827";
+const allowedLogoMimeTypes = ["image/png", "image/jpeg", "image/webp"];
 
 function createInitialState(team: TeamSettings): FormState {
   return {
@@ -56,17 +64,65 @@ function validateForm(form: FormState) {
   return null;
 }
 
+function getInitials(name: string) {
+  return (
+    name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word.charAt(0).toUpperCase())
+      .join("") || "FS"
+  );
+}
+
 export function TeamSettingsForm({ team }: { team: TeamSettings }) {
   const router = useRouter();
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState<FormState>(() => createInitialState(team));
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState(form.logoUrl);
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!logoFile) {
+      setLogoPreviewUrl(form.logoUrl);
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(logoFile);
+    setLogoPreviewUrl(previewUrl);
+
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [form.logoUrl, logoFile]);
 
   function updateField<Field extends keyof FormState>(
     field: Field,
     value: FormState[Field]
   ) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+
+    if (!file) {
+      setLogoFile(null);
+      return;
+    }
+
+    if (!allowedLogoMimeTypes.includes(file.type)) {
+      setLogoFile(null);
+      event.target.value = "";
+      setMessage({
+        type: "error",
+        text: "Choose a PNG, JPG, JPEG, or WebP image file."
+      });
+      return;
+    }
+
+    setMessage(null);
+    setLogoFile(file);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -83,20 +139,22 @@ export function TeamSettingsForm({ team }: { team: TeamSettings }) {
     setIsSubmitting(true);
 
     try {
+      const requestBody = new FormData();
+      requestBody.append("name", form.name.trim());
+      requestBody.append("schoolName", form.schoolName.trim());
+      requestBody.append("mascot", form.mascot.trim());
+      requestBody.append("primaryColor", form.primaryColor);
+      requestBody.append("secondaryColor", form.secondaryColor);
+      requestBody.append("logoUrl", form.logoUrl.trim());
+      requestBody.append("contactEmail", form.contactEmail.trim());
+
+      if (logoFile) {
+        requestBody.append("logoFile", logoFile);
+      }
+
       const response = await fetch("/api/team", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          name: form.name.trim(),
-          schoolName: form.schoolName.trim() || null,
-          mascot: form.mascot.trim() || null,
-          primaryColor: form.primaryColor,
-          secondaryColor: form.secondaryColor,
-          logoUrl: form.logoUrl.trim() || null,
-          contactEmail: form.contactEmail.trim() || null
-        })
+        body: requestBody
       });
       const result = (await response.json()) as TeamSettingsResult;
 
@@ -106,6 +164,16 @@ export function TeamSettingsForm({ team }: { team: TeamSettings }) {
           text: result.message || "Could not update team settings. Please try again."
         });
         return;
+      }
+
+      if (result.logoUrl !== undefined) {
+        setForm((current) => ({ ...current, logoUrl: result.logoUrl ?? "" }));
+      }
+
+      setLogoFile(null);
+
+      if (logoInputRef.current) {
+        logoInputRef.current.value = "";
       }
 
       setMessage({ type: "success", text: result.message });
@@ -184,11 +252,12 @@ export function TeamSettingsForm({ team }: { team: TeamSettings }) {
             onChange={(value) => updateField("secondaryColor", value)}
           />
           <div className="md:col-span-2">
-            <TextField
-              label="Logo URL"
-              type="url"
-              value={form.logoUrl}
-              onChange={(value) => updateField("logoUrl", value)}
+            <LogoUploadField
+              inputRef={logoInputRef}
+              logoFileName={logoFile?.name ?? null}
+              logoPreviewUrl={logoPreviewUrl}
+              teamName={form.name}
+              onChange={handleLogoChange}
             />
           </div>
         </div>
@@ -204,7 +273,7 @@ export function TeamSettingsForm({ team }: { team: TeamSettings }) {
         </div>
       </form>
 
-      <BrandPreview form={form} />
+      <BrandPreview form={form} logoPreviewUrl={logoPreviewUrl} />
     </div>
   );
 }
@@ -219,7 +288,7 @@ function TextField({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  type?: "text" | "email" | "url";
+  type?: "text" | "email";
   required?: boolean;
 }) {
   return (
@@ -261,13 +330,72 @@ function ColorField({
   );
 }
 
-function BrandPreview({ form }: { form: FormState }) {
-  const initials = form.name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word.charAt(0).toUpperCase())
-    .join("") || "FS";
+function LogoUploadField({
+  inputRef,
+  logoFileName,
+  logoPreviewUrl,
+  teamName,
+  onChange
+}: {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  logoFileName: string | null;
+  logoPreviewUrl: string;
+  teamName: string;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+}) {
+  const initials = getInitials(teamName);
+
+  return (
+    <div className="space-y-2">
+      <span className="text-sm font-semibold text-gray-700">Team logo</span>
+      <div className="flex flex-col gap-4 rounded-md border border-gray-200 bg-white p-4 sm:flex-row sm:items-center">
+        <div
+          className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md bg-green-900 text-lg font-bold text-white ring-1 ring-gray-200"
+          style={
+            logoPreviewUrl
+              ? {
+                  backgroundImage: `url(${logoPreviewUrl})`,
+                  backgroundPosition: "center",
+                  backgroundSize: "cover"
+                }
+              : undefined
+          }
+          aria-label="Current team logo preview"
+        >
+          {logoPreviewUrl ? null : initials}
+        </div>
+        <div className="min-w-0 flex-1 space-y-2">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+            onChange={onChange}
+            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-green-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-900"
+          />
+          <p className="text-xs leading-5 text-gray-500">
+            Square PNG or JPG logos work best.
+          </p>
+          <p className="text-xs font-medium text-gray-600">
+            {logoFileName
+              ? `Ready to upload: ${logoFileName}`
+              : logoPreviewUrl
+                ? "Current logo will stay unless you choose a new file."
+                : "No logo uploaded yet."}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BrandPreview({
+  form,
+  logoPreviewUrl
+}: {
+  form: FormState;
+  logoPreviewUrl: string;
+}) {
+  const initials = getInitials(form.name);
 
   return (
     <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
@@ -284,10 +412,19 @@ function BrandPreview({ form }: { form: FormState }) {
         >
           <div className="flex items-center gap-4">
             <div
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md text-lg font-bold"
-              style={{ backgroundColor: form.secondaryColor }}
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md text-lg font-bold ring-1 ring-white/20"
+              style={{
+                backgroundColor: form.secondaryColor,
+                ...(logoPreviewUrl
+                  ? {
+                      backgroundImage: `url(${logoPreviewUrl})`,
+                      backgroundPosition: "center",
+                      backgroundSize: "cover"
+                    }
+                  : {})
+              }}
             >
-              {initials}
+              {logoPreviewUrl ? null : initials}
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide opacity-80">
@@ -319,9 +456,9 @@ function BrandPreview({ form }: { form: FormState }) {
             </span>
           </div>
           <div className="flex items-center justify-between gap-3">
-            <span>Logo URL</span>
+            <span>Logo</span>
             <span className="truncate text-right">
-              {form.logoUrl || "Not set"}
+              {logoPreviewUrl ? "Uploaded" : "Not set"}
             </span>
           </div>
         </div>
