@@ -55,7 +55,11 @@ function validateForm(form: FormState) {
   return null;
 }
 
-export function AddEventForm() {
+export function AddEventForm({
+  activeSeasonName
+}: {
+  activeSeasonName: string | null;
+}) {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(initialFormState);
   const [message, setMessage] = useState<FormMessage | null>(null);
@@ -134,6 +138,11 @@ export function AddEventForm() {
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">
             Add Event
           </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            {activeSeasonName
+              ? `New events will be attached to ${activeSeasonName}.`
+              : "No active season is set, so new events will not be season-specific yet."}
+          </p>
         </div>
       </div>
 
