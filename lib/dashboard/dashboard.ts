@@ -1,3 +1,4 @@
+import { getActiveSeasonForTeam } from "../seasons/active-season";
 import { createServiceRoleClient } from "../supabase/server";
 
 type PlayerLookupRow = {
@@ -59,6 +60,7 @@ export type DashboardData =
   | {
       status: "ready";
       teamName: string;
+      activeSeasonName: string | null;
       summary: DashboardSummary;
       recentRounds: DashboardRound[];
     }
@@ -140,6 +142,17 @@ export async function getDashboardData(): Promise<DashboardData> {
       };
     }
 
+    const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
+
+    const eventsQuery = supabase
+      .from("events")
+      .select("id, name")
+      .eq("team_id", team.id);
+    const roundsQuery = supabase
+      .from("rounds")
+      .select(roundsSelect)
+      .eq("team_id", team.id);
+
     const [playersResult, eventsResult, roundsResult] = await Promise.all([
       supabase
         .from("players")
@@ -147,16 +160,16 @@ export async function getDashboardData(): Promise<DashboardData> {
         .eq("team_id", team.id)
         .order("last_name", { ascending: true })
         .order("first_name", { ascending: true }),
-      supabase
-        .from("events")
-        .select("id, name")
-        .eq("team_id", team.id)
+      (activeSeason
+        ? eventsQuery.eq("season_id", activeSeason.id)
+        : eventsQuery
+      )
         .order("event_date", { ascending: true })
         .order("name", { ascending: true }),
-      supabase
-        .from("rounds")
-        .select(roundsSelect)
-        .eq("team_id", team.id)
+      (activeSeason
+        ? roundsQuery.eq("season_id", activeSeason.id)
+        : roundsQuery
+      )
         .order("played_on", { ascending: false })
         .order("created_at", { ascending: false })
     ]);
@@ -214,6 +227,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     return {
       status: "ready",
       teamName: team.name,
+      activeSeasonName: activeSeason?.name ?? null,
       summary: {
         totalPlayers: players.length,
         totalEvents: events.length,
