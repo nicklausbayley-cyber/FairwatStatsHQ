@@ -17,6 +17,7 @@ type EventOption = {
 
 type ScoreFormProps = {
   teamId: string;
+  activeSeasonName: string | null;
   players: PlayerOption[];
   events: EventOption[];
 };
@@ -142,7 +143,12 @@ async function submitRound(input: SubmitRoundInput): Promise<SubmitRoundResult> 
   }
 }
 
-export function ScoreForm({ teamId, players, events }: ScoreFormProps) {
+export function ScoreForm({
+  teamId,
+  activeSeasonName,
+  players,
+  events
+}: ScoreFormProps) {
   const [form, setForm] = useState<FormState>(createInitialState);
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -401,7 +407,9 @@ export function ScoreForm({ teamId, players, events }: ScoreFormProps) {
 
       <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-gray-500">
-          Active season is attached automatically when one exists.
+          {activeSeasonName
+            ? `This round will be attached to ${activeSeasonName}.`
+            : "No active season is set, so this round will not be season-specific yet."}
         </p>
         <button
           type="submit"
