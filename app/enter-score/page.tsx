@@ -17,6 +17,12 @@ type EventOption = {
   eventType: string;
 };
 
+type CourseOption = {
+  id: string;
+  name: string;
+  location: string | null;
+};
+
 type EnterScoreState =
   | {
       status: "ready";
@@ -25,6 +31,7 @@ type EnterScoreState =
       activeSeasonName: string | null;
       players: PlayerOption[];
       events: EventOption[];
+      courses: CourseOption[];
     }
   | {
       status: "empty";
@@ -66,7 +73,7 @@ async function getEnterScoreData(): Promise<EnterScoreState> {
       .select("id, name, event_date, event_type")
       .eq("team_id", team.id);
 
-    const [playersResult, eventsResult] = await Promise.all([
+    const [playersResult, eventsResult, coursesResult] = await Promise.all([
       supabase
         .from("players")
         .select("id, first_name, last_name")
@@ -79,6 +86,11 @@ async function getEnterScoreData(): Promise<EnterScoreState> {
         : eventsQuery
       )
         .order("event_date", { ascending: false })
+        .order("name", { ascending: true }),
+      supabase
+        .from("courses")
+        .select("id, name, location")
+        .eq("team_id", team.id)
         .order("name", { ascending: true })
     ]);
 
@@ -93,6 +105,13 @@ async function getEnterScoreData(): Promise<EnterScoreState> {
       return {
         status: "error",
         message: eventsResult.error.message
+      };
+    }
+
+    if (coursesResult.error) {
+      return {
+        status: "error",
+        message: coursesResult.error.message
       };
     }
 
@@ -111,6 +130,11 @@ async function getEnterScoreData(): Promise<EnterScoreState> {
         name: event.name,
         eventDate: event.event_date,
         eventType: event.event_type
+      })),
+      courses: (coursesResult.data ?? []).map((course) => ({
+        id: course.id,
+        name: course.name,
+        location: course.location
       }))
     };
   } catch (error) {
@@ -167,6 +191,7 @@ export default async function EnterScorePage() {
           activeSeasonName={scoreEntry.activeSeasonName}
           players={scoreEntry.players}
           events={scoreEntry.events}
+          courses={scoreEntry.courses}
         />
       )}
     </section>
