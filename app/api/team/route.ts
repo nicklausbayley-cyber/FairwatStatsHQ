@@ -1,8 +1,10 @@
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 type TeamSettingsInput = {
   name?: string;
@@ -28,8 +30,16 @@ type TeamSettingsValidationResult =
   | { error: string; team: null }
   | { error: null; team: ValidatedTeamSettings };
 
+type TeamSettingsRequest = {
+  input: TeamSettingsInput;
+  logoFile: File | null;
+};
+
 const defaultPrimaryColor = "#166534";
 const defaultSecondaryColor = "#111827";
+const logoBucketName = "team-logos";
+const allowedLogoMimeTypes = ["image/png", "image/jpeg", "image/webp"];
+const allowedLogoExtensions = ["png", "jpg", "jpeg", "webp"];
 
 function jsonResult(message: string, status = 400) {
   return NextResponse.json({ success: false, message }, { status });
@@ -62,6 +72,81 @@ function isValidOptionalUrl(value: string | null) {
   } catch {
     return false;
   }
+}
+
+function formText(formData: FormData, field: string) {
+  const value = formData.get(field);
+  return typeof value === "string" ? value : undefined;
+}
+
+function getLogoFile(value: FormDataEntryValue | null) {
+  if (typeof File === "undefined" || !(value instanceof File) || value.size === 0) {
+    return null;
+  }
+
+  return value;
+}
+
+async function readTeamSettingsRequest(
+  request: Request
+): Promise<TeamSettingsRequest> {
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
+
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await request.formData();
+
+    return {
+      input: {
+        name: formText(formData, "name"),
+        schoolName: formText(formData, "schoolName"),
+        mascot: formText(formData, "mascot"),
+        primaryColor: formText(formData, "primaryColor"),
+        secondaryColor: formText(formData, "secondaryColor"),
+        logoUrl: formText(formData, "logoUrl"),
+        contactEmail: formText(formData, "contactEmail")
+      },
+      logoFile: getLogoFile(formData.get("logoFile"))
+    };
+  }
+
+  return {
+    input: (await request.json()) as TeamSettingsInput,
+    logoFile: null
+  };
+}
+
+function getLogoFileExtension(file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  if (extension && allowedLogoExtensions.includes(extension)) {
+    return extension === "jpeg" ? "jpg" : extension;
+  }
+
+  if (file.type === "image/png") {
+    return "png";
+  }
+
+  if (file.type === "image/jpeg") {
+    return "jpg";
+  }
+
+  if (file.type === "image/webp") {
+    return "webp";
+  }
+
+  return null;
+}
+
+function validateLogoFile(file: File) {
+  if (!allowedLogoMimeTypes.includes(file.type)) {
+    return "Logo must be a PNG, JPG, JPEG, or WebP image file.";
+  }
+
+  if (!getLogoFileExtension(file)) {
+    return "Logo file must end in .png, .jpg, .jpeg, or .webp.";
+  }
+
+  return null;
 }
 
 function validateTeamSettings(input: TeamSettingsInput): TeamSettingsValidationResult {
@@ -107,19 +192,122 @@ function validateTeamSettings(input: TeamSettingsInput): TeamSettingsValidationR
   };
 }
 
+async function ensureLogoBucket(
+  supabase: ReturnType<typeof createServiceRoleClient>
+) {
+  const { data: bucket, error: getBucketError } = await supabase.storage.getBucket(
+    logoBucketName
+  );
+
+  if (!getBucketError && bucket) {
+    if (!bucket.public) {
+      const { error: updateBucketError } = await supabase.storage.updateBucket(
+        logoBucketName,
+        {
+          public: true,
+          allowedMimeTypes: allowedLogoMimeTypes
+        }
+      );
+
+      if (updateBucketError) {
+        return `Could not make the team logo bucket public: ${updateBucketError.message}`;
+      }
+    }
+
+    return null;
+  }
+
+  const { error: createBucketError } = await supabase.storage.createBucket(
+    logoBucketName,
+    {
+      public: true,
+      allowedMimeTypes: allowedLogoMimeTypes
+    }
+  );
+
+  if (
+    createBucketError &&
+    !createBucketError.message.toLowerCase().includes("already exists")
+  ) {
+    return `Could not create the team logo bucket: ${createBucketError.message}`;
+  }
+
+  return null;
+}
+
+async function uploadLogoFile({
+  supabase,
+  teamId,
+  logoFile
+}: {
+  supabase: ReturnType<typeof createServiceRoleClient>;
+  teamId: string;
+  logoFile: File;
+}) {
+  const validationError = validateLogoFile(logoFile);
+
+  if (validationError) {
+    return { publicUrl: null, error: validationError };
+  }
+
+  const bucketError = await ensureLogoBucket(supabase);
+
+  if (bucketError) {
+    return { publicUrl: null, error: bucketError };
+  }
+
+  const extension = getLogoFileExtension(logoFile);
+
+  if (!extension) {
+    return { publicUrl: null, error: "Could not read the logo file type." };
+  }
+
+  const filePath = `${teamId}/${Date.now()}-${randomUUID()}.${extension}`;
+  const { error: uploadError } = await supabase.storage
+    .from(logoBucketName)
+    .upload(filePath, logoFile, {
+      cacheControl: "31536000",
+      contentType: logoFile.type,
+      upsert: false
+    });
+
+  if (uploadError) {
+    return {
+      publicUrl: null,
+      error: `Could not upload team logo: ${uploadError.message}`
+    };
+  }
+
+  const { data } = supabase.storage.from(logoBucketName).getPublicUrl(filePath);
+
+  if (!data.publicUrl) {
+    return { publicUrl: null, error: "Could not create a public logo URL." };
+  }
+
+  return { publicUrl: data.publicUrl, error: null };
+}
+
 export async function PATCH(request: Request) {
-  let input: TeamSettingsInput;
+  let settingsRequest: TeamSettingsRequest;
 
   try {
-    input = (await request.json()) as TeamSettingsInput;
+    settingsRequest = await readTeamSettingsRequest(request);
   } catch {
     return jsonResult("Could not read team settings.");
   }
 
-  const validation = validateTeamSettings(input);
+  const validation = validateTeamSettings(settingsRequest.input);
 
   if (validation.error) {
     return jsonResult(validation.error);
+  }
+
+  if (settingsRequest.logoFile) {
+    const logoValidationError = validateLogoFile(settingsRequest.logoFile);
+
+    if (logoValidationError) {
+      return jsonResult(logoValidationError);
+    }
   }
 
   try {
@@ -141,6 +329,22 @@ export async function PATCH(request: Request) {
     }
 
     const { team: teamSettings } = validation;
+    let logoUrl = teamSettings.logoUrl;
+
+    if (settingsRequest.logoFile) {
+      const logoUpload = await uploadLogoFile({
+        supabase,
+        teamId: team.id,
+        logoFile: settingsRequest.logoFile
+      });
+
+      if (logoUpload.error) {
+        return jsonResult(logoUpload.error, 500);
+      }
+
+      logoUrl = logoUpload.publicUrl;
+    }
+
     const { data: updatedTeam, error } = await supabase
       .from("teams")
       .update({
@@ -149,11 +353,11 @@ export async function PATCH(request: Request) {
         mascot: teamSettings.mascot,
         primary_color: teamSettings.primaryColor,
         secondary_color: teamSettings.secondaryColor,
-        logo_url: teamSettings.logoUrl,
+        logo_url: logoUrl,
         contact_email: teamSettings.contactEmail
       })
       .eq("id", team.id)
-      .select("id, name")
+      .select("id, name, logo_url")
       .maybeSingle();
 
     if (error) {
@@ -164,14 +368,19 @@ export async function PATCH(request: Request) {
       return jsonResult("Team not found.", 404);
     }
 
+    revalidatePath("/", "layout");
     revalidatePath("/settings");
     revalidatePath("/dashboard");
     revalidatePath("/roster");
     revalidatePath("/events");
+    revalidatePath("/statistics");
+    revalidatePath("/enter-score");
+    revalidatePath("/players");
 
     return NextResponse.json({
       success: true,
-      message: `${updatedTeam.name} settings updated.`
+      message: `${updatedTeam.name} settings updated.`,
+      logoUrl: updatedTeam.logo_url
     });
   } catch (error) {
     return jsonResult(
