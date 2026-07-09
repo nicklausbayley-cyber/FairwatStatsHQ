@@ -9,6 +9,7 @@ const navItems = [
   { href: "/enter-score", label: "Enter Score" },
   { href: "/roster", label: "Roster" },
   { href: "/events", label: "Events" },
+  { href: "/courses", label: "Courses" },
   { href: "/statistics", label: "Statistics" },
   { href: "/settings", label: "Settings" }
 ];
