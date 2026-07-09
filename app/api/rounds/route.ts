@@ -145,6 +145,7 @@ export async function POST(request: Request) {
     revalidatePath("/dashboard");
     revalidatePath("/statistics");
     revalidatePath("/players");
+    revalidatePath("/players/[id]", "page");
     revalidatePath("/roster");
 
     return NextResponse.json(
