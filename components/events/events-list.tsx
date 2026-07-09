@@ -29,14 +29,23 @@ export function EventsList({
             </p>
           </div>
           {eventsData.status === "ready" ? (
-            <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
-              {eventsData.events.length} events
+            <div className="flex flex-wrap gap-2">
+              <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+                {eventsData.events.length} events
+              </div>
+              <div className="rounded-md bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
+                {eventsData.activeSeasonName
+                  ? `Active: ${eventsData.activeSeasonName}`
+                  : "All seasons"}
+              </div>
             </div>
           ) : null}
         </div>
       </div>
 
-      {eventsData.status === "ready" && showAddEventForm ? <AddEventForm /> : null}
+      {eventsData.status === "ready" && showAddEventForm ? (
+        <AddEventForm activeSeasonName={eventsData.activeSeasonName} />
+      ) : null}
 
       {eventsData.status === "error" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
@@ -53,7 +62,9 @@ export function EventsList({
 
       {eventsData.status === "ready" && eventsData.events.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          No events found for this team yet.
+          {eventsData.activeSeasonName
+            ? `No events found for ${eventsData.activeSeasonName} yet.`
+            : "No events found for this team yet."}
         </div>
       ) : null}
 
