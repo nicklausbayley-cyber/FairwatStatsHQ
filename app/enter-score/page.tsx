@@ -1,3 +1,4 @@
+import { getActiveSeasonForTeam } from "../../lib/seasons/active-season";
 import { createServiceRoleClient } from "../../lib/supabase/server";
 import { ScoreForm } from "./score-form";
 
@@ -21,6 +22,7 @@ type EnterScoreState =
       status: "ready";
       teamId: string;
       teamName: string;
+      activeSeasonName: string | null;
       players: PlayerOption[];
       events: EventOption[];
     }
@@ -58,6 +60,12 @@ async function getEnterScoreData(): Promise<EnterScoreState> {
       };
     }
 
+    const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
+    const eventsQuery = supabase
+      .from("events")
+      .select("id, name, event_date, event_type")
+      .eq("team_id", team.id);
+
     const [playersResult, eventsResult] = await Promise.all([
       supabase
         .from("players")
@@ -66,10 +74,10 @@ async function getEnterScoreData(): Promise<EnterScoreState> {
         .eq("status", "active")
         .order("last_name", { ascending: true })
         .order("first_name", { ascending: true }),
-      supabase
-        .from("events")
-        .select("id, name, event_date, event_type")
-        .eq("team_id", team.id)
+      (activeSeason
+        ? eventsQuery.eq("season_id", activeSeason.id)
+        : eventsQuery
+      )
         .order("event_date", { ascending: false })
         .order("name", { ascending: true })
     ]);
@@ -92,6 +100,7 @@ async function getEnterScoreData(): Promise<EnterScoreState> {
       status: "ready",
       teamId: team.id,
       teamName: team.name,
+      activeSeasonName: activeSeason?.name ?? null,
       players: (playersResult.data ?? []).map((player) => ({
         id: player.id,
         firstName: player.first_name,
@@ -143,7 +152,10 @@ export default async function EnterScorePage() {
 
   return (
     <section className="space-y-6">
-      <EnterScoreHeader teamName={scoreEntry.teamName} />
+      <EnterScoreHeader
+        teamName={scoreEntry.teamName}
+        activeSeasonName={scoreEntry.activeSeasonName}
+      />
 
       {scoreEntry.players.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
@@ -152,6 +164,7 @@ export default async function EnterScorePage() {
       ) : (
         <ScoreForm
           teamId={scoreEntry.teamId}
+          activeSeasonName={scoreEntry.activeSeasonName}
           players={scoreEntry.players}
           events={scoreEntry.events}
         />
@@ -160,7 +173,13 @@ export default async function EnterScorePage() {
   );
 }
 
-function EnterScoreHeader({ teamName }: { teamName?: string }) {
+function EnterScoreHeader({
+  teamName,
+  activeSeasonName
+}: {
+  teamName?: string;
+  activeSeasonName?: string | null;
+}) {
   return (
     <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
       <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
@@ -177,6 +196,11 @@ function EnterScoreHeader({ teamName }: { teamName?: string }) {
               : "Submit scores and golf stats once Supabase data is available."}
           </p>
         </div>
+        {teamName ? (
+          <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+            {activeSeasonName ? `Active: ${activeSeasonName}` : "All seasons"}
+          </div>
+        ) : null}
       </div>
     </div>
   );
