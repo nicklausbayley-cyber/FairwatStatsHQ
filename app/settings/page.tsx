@@ -1,3 +1,7 @@
+import {
+  SeasonManagement,
+  type SeasonSettings
+} from "../../components/settings/season-management";
 import { TeamSettingsForm } from "../../components/settings/team-settings-form";
 import { createServiceRoleClient } from "../../lib/supabase/server";
 
@@ -14,10 +18,19 @@ type TeamSettings = {
   contact_email: string | null;
 };
 
+type SeasonSettingsRow = {
+  id: string;
+  name: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  is_active: boolean;
+};
+
 type SettingsState =
   | {
       status: "ready";
       team: TeamSettings;
+      seasons: SeasonSettingsRow[];
     }
   | {
       status: "empty";
@@ -55,9 +68,24 @@ async function getSettingsData(): Promise<SettingsState> {
       };
     }
 
+    const { data: seasons, error: seasonsError } = await supabase
+      .from("seasons")
+      .select("id, name, starts_on, ends_on, is_active")
+      .eq("team_id", team.id)
+      .order("starts_on", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (seasonsError) {
+      return {
+        status: "error",
+        message: seasonsError.message
+      };
+    }
+
     return {
       status: "ready",
-      team: team as TeamSettings
+      team: team as TeamSettings,
+      seasons: (seasons ?? []) as SeasonSettingsRow[]
     };
   } catch (error) {
     return {
@@ -68,6 +96,16 @@ async function getSettingsData(): Promise<SettingsState> {
           : "Unable to load team settings."
     };
   }
+}
+
+function toSeasonSettings(seasons: SeasonSettingsRow[]): SeasonSettings[] {
+  return seasons.map((season) => ({
+    id: season.id,
+    name: season.name,
+    startsOn: season.starts_on,
+    endsOn: season.ends_on,
+    isActive: season.is_active
+  }));
 }
 
 export default async function SettingsPage() {
@@ -113,6 +151,7 @@ export default async function SettingsPage() {
           contactEmail: settings.team.contact_email
         }}
       />
+      <SeasonManagement seasons={toSeasonSettings(settings.seasons)} />
     </section>
   );
 }
@@ -136,8 +175,8 @@ function SettingsHeader({
           </h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-gray-600">
             {teamName
-              ? `${teamName}${schoolName ? ` at ${schoolName}` : ""} branding and team details.`
-              : "Manage team branding and basic setup details."}
+              ? `${teamName}${schoolName ? ` at ${schoolName}` : ""} branding, seasons, and team details.`
+              : "Manage team branding, seasons, and basic setup details."}
           </p>
         </div>
       </div>
