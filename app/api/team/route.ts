@@ -45,6 +45,7 @@ const defaultSecondaryColor = "#111827";
 const logoBucketName = "team-logos";
 const allowedLogoMimeTypes = ["image/png", "image/jpeg", "image/webp"];
 const allowedLogoExtensions = ["png", "jpg", "jpeg", "webp"];
+const maxLogoFileSizeBytes = 2 * 1024 * 1024;
 
 function jsonResult(message: string, status = 400) {
   return NextResponse.json({ success: false, message }, { status });
@@ -143,6 +144,10 @@ function getLogoFileExtension(file: File) {
 }
 
 function validateLogoFile(file: File) {
+  if (file.size > maxLogoFileSizeBytes) {
+    return "Logo file must be 2MB or smaller.";
+  }
+
   if (!allowedLogoMimeTypes.includes(file.type)) {
     return "Logo must be a PNG, JPG, JPEG, or WebP image file.";
   }
@@ -293,34 +298,6 @@ async function uploadLogoFile({
 }
 
 export async function PATCH(request: Request) {
-  let settingsRequest: TeamSettingsRequest;
-
-  try {
-    settingsRequest = await readTeamSettingsRequest(request);
-  } catch {
-    return jsonResult("Could not read team settings.");
-  }
-
-  const validation = validateTeamSettings(settingsRequest.input);
-
-  if (validation.error) {
-    return jsonResult(validation.error);
-  }
-
-  const teamSettings = validation.team;
-
-  if (!teamSettings) {
-    return jsonResult("Invalid team settings.");
-  }
-
-  if (settingsRequest.logoFile) {
-    const logoValidationError = validateLogoFile(settingsRequest.logoFile);
-
-    if (logoValidationError) {
-      return jsonResult(logoValidationError);
-    }
-  }
-
   try {
     const currentTeam = await getCurrentTeam();
 
@@ -333,6 +310,34 @@ export async function PATCH(request: Request) {
     }
 
     const { supabase, team } = currentTeam.data;
+    let settingsRequest: TeamSettingsRequest;
+
+    try {
+      settingsRequest = await readTeamSettingsRequest(request);
+    } catch {
+      return jsonResult("Could not read team settings.");
+    }
+
+    const validation = validateTeamSettings(settingsRequest.input);
+
+    if (validation.error) {
+      return jsonResult(validation.error);
+    }
+
+    const teamSettings = validation.team;
+
+    if (!teamSettings) {
+      return jsonResult("Invalid team settings.");
+    }
+
+    if (settingsRequest.logoFile) {
+      const logoValidationError = validateLogoFile(settingsRequest.logoFile);
+
+      if (logoValidationError) {
+        return jsonResult(logoValidationError);
+      }
+    }
+
     let logoUrl = teamSettings.logoUrl;
 
     if (settingsRequest.logoFile) {
