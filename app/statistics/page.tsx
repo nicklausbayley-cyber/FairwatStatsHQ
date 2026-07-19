@@ -3,6 +3,20 @@ import { createServiceRoleClient } from "../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+type SearchParams = {
+  courseId?: string | string[];
+  eventId?: string | string[];
+};
+
+type StatisticsPageProps = {
+  searchParams?: Promise<SearchParams>;
+};
+
+type StatisticsFilters = {
+  courseId: string;
+  eventId: string;
+};
+
 type PlayerRow = {
   id: string;
   first_name: string;
@@ -10,7 +24,9 @@ type PlayerRow = {
 };
 
 type RoundRow = {
+  id: string;
   player_id: string;
+  event_id: string | null;
   score: number;
   putts: number | null;
   fairways_hit: number | null;
@@ -19,6 +35,44 @@ type RoundRow = {
   gir_possible: number | null;
   penalties: number | null;
   three_putts: number | null;
+};
+
+type CourseRow = {
+  id: string;
+  name: string;
+  location: string | null;
+};
+
+type EventRow = {
+  id: string;
+  name: string;
+  event_date: string;
+  event_type: string;
+  season_id: string | null;
+};
+
+type CourseHoleRow = {
+  course_id: string;
+  hole_number: number;
+  par: number;
+  handicap: number | null;
+  yardage: number | null;
+};
+
+type RoundHoleRow = {
+  id: string;
+  round_id: string;
+  player_id: string;
+  event_id: string | null;
+  course_id: string | null;
+  hole_number: number;
+  par: number;
+  handicap: number | null;
+  score: number;
+  putts: number | null;
+  fir: boolean | null;
+  gir: boolean | null;
+  penalty: number | null;
 };
 
 type PlayerStats = {
@@ -34,12 +88,56 @@ type PlayerStats = {
   averageThreePutts: number | null;
 };
 
+type CourseOption = {
+  id: string;
+  name: string;
+  location: string | null;
+};
+
+type EventOption = {
+  id: string;
+  name: string;
+  eventDate: string;
+  eventType: string;
+};
+
+type HoleStats = {
+  holeNumber: number;
+  par: number;
+  handicap: number | null;
+  roundsPlayed: number;
+  averageScore: number | null;
+  averageScoreToPar: number | null;
+  averagePutts: number | null;
+  firPercentage: number | null;
+  girPercentage: number | null;
+  averagePenalties: number | null;
+  threePuttCount: number;
+  threePuttPercentage: number | null;
+};
+
+type HoleBreakdown = {
+  courses: CourseOption[];
+  events: EventOption[];
+  selectedCourseId: string;
+  selectedCourseName: string | null;
+  selectedEventId: string;
+  selectedEventName: string | null;
+  activeSeasonName: string | null;
+  holes: HoleStats[];
+  hardestHoles: HoleStats[];
+  scorecardCount: number;
+  playerCount: number;
+  note: string | null;
+};
+
 type StatisticsState =
   | {
       status: "ready";
       teamName: string;
       activeSeasonName: string | null;
       playerStats: PlayerStats[];
+      holeBreakdown: HoleBreakdown;
     }
   | {
       status: "empty";
@@ -49,6 +147,14 @@ type StatisticsState =
       status: "error";
       message: string;
     };
+
+function getSearchValue(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
+}
 
 function isNumber(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -103,6 +209,104 @@ function percentageFromTotals(
   return totals.hit / totals.possible;
 }
 
+function percentageFromBooleanRows(rows: RoundHoleRow[], key: "fir" | "gir") {
+  const recordedRows = rows.filter((row) => typeof row[key] === "boolean");
+
+  if (recordedRows.length === 0) {
+    return null;
+  }
+
+  return recordedRows.filter((row) => row[key] === true).length / recordedRows.length;
+}
+
+function getHoleDefinitions(courseHoles: CourseHoleRow[], roundHoles: RoundHoleRow[]) {
+  if (courseHoles.length > 0) {
+    return courseHoles;
+  }
+
+  const holesByNumber = new Map<number, CourseHoleRow>();
+
+  roundHoles.forEach((hole) => {
+    if (holesByNumber.has(hole.hole_number)) {
+      return;
+    }
+
+    holesByNumber.set(hole.hole_number, {
+      course_id: hole.course_id ?? "",
+      hole_number: hole.hole_number,
+      par: hole.par,
+      handicap: hole.handicap,
+      yardage: null
+    });
+  });
+
+  return Array.from(holesByNumber.values()).sort(
+    (a, b) => a.hole_number - b.hole_number
+  );
+}
+
+function buildHoleStats(courseHoles: CourseHoleRow[], roundHoles: RoundHoleRow[]) {
+  const holesByNumber = new Map<number, RoundHoleRow[]>();
+
+  roundHoles.forEach((hole) => {
+    const holeRows = holesByNumber.get(hole.hole_number) ?? [];
+    holeRows.push(hole);
+    holesByNumber.set(hole.hole_number, holeRows);
+  });
+
+  return getHoleDefinitions(courseHoles, roundHoles).map((hole) => {
+    const holeRows = holesByNumber.get(hole.hole_number) ?? [];
+    const puttRows = holeRows.filter((row) => isNumber(row.putts));
+    const fairwayRows = holeRows.filter(
+      (row) => row.par !== 3 && typeof row.fir === "boolean"
+    );
+    const threePuttCount = puttRows.filter((row) => (row.putts ?? 0) >= 3).length;
+
+    return {
+      holeNumber: hole.hole_number,
+      par: hole.par,
+      handicap: hole.handicap,
+      roundsPlayed: holeRows.length,
+      averageScore: average(holeRows.map((row) => row.score)),
+      averageScoreToPar: average(holeRows.map((row) => row.score - row.par)),
+      averagePutts: average(holeRows.map((row) => row.putts)),
+      firPercentage:
+        hole.par === 3
+          ? null
+          : percentageFromBooleanRows(fairwayRows, "fir"),
+      girPercentage: percentageFromBooleanRows(holeRows, "gir"),
+      averagePenalties: average(holeRows.map((row) => row.penalty)),
+      threePuttCount,
+      threePuttPercentage:
+        puttRows.length > 0 ? threePuttCount / puttRows.length : null
+    };
+  });
+}
+
+function buildHoleBreakdownNote(
+  selectedCourseId: string,
+  holeCount: number,
+  scorecardCount: number
+) {
+  if (!selectedCourseId) {
+    return "Add or select a course to see hole-by-hole analytics.";
+  }
+
+  if (holeCount === 0) {
+    return "This course does not have saved hole setup yet. Add holes on the Courses page before tracking trends.";
+  }
+
+  if (scorecardCount === 0) {
+    return "No hole-by-hole rounds match these filters yet.";
+  }
+
+  if (scorecardCount < 3) {
+    return "Early read: add more hole-by-hole rounds before making coaching decisions from this breakdown.";
+  }
+
+  return null;
+}
+
 function formatAverage(value: number | null) {
   return value === null ? "No data" : value.toFixed(1);
 }
@@ -111,11 +315,31 @@ function formatPercentage(value: number | null) {
   return value === null ? "No data" : `${Math.round(value * 100)}%`;
 }
 
+function formatFirPercentage(hole: HoleStats) {
+  return hole.par === 3 ? "N/A" : formatPercentage(hole.firPercentage);
+}
+
 function formatWholeNumber(value: number | null) {
   return value === null ? "No data" : value.toString();
 }
 
-async function getStatistics(): Promise<StatisticsState> {
+function formatToPar(value: number | null) {
+  if (value === null) {
+    return "No data";
+  }
+
+  if (Math.abs(value) < 0.05) {
+    return "E";
+  }
+
+  return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
+}
+
+function formatEventLabel(event: EventOption) {
+  return `${event.name} (${event.eventDate})`;
+}
+
+async function getStatistics(filters: StatisticsFilters): Promise<StatisticsState> {
   try {
     const supabase = createServiceRoleClient();
 
@@ -144,18 +368,29 @@ async function getStatistics(): Promise<StatisticsState> {
     const roundsQuery = supabase
       .from("rounds")
       .select(
-        "player_id, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts"
+        "id, player_id, event_id, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts"
       )
       .eq("team_id", team.id);
 
-    const [playersResult, roundsResult] = await Promise.all([
+    const [playersResult, roundsResult, coursesResult, eventsResult] = await Promise.all([
       supabase
         .from("players")
         .select("id, first_name, last_name")
         .eq("team_id", team.id)
         .order("last_name", { ascending: true })
         .order("first_name", { ascending: true }),
-      activeSeason ? roundsQuery.eq("season_id", activeSeason.id) : roundsQuery
+      activeSeason ? roundsQuery.eq("season_id", activeSeason.id) : roundsQuery,
+      supabase
+        .from("courses")
+        .select("id, name, location")
+        .eq("team_id", team.id)
+        .order("name", { ascending: true }),
+      supabase
+        .from("events")
+        .select("id, name, event_date, event_type, season_id")
+        .eq("team_id", team.id)
+        .order("event_date", { ascending: true })
+        .order("name", { ascending: true })
     ]);
 
     if (playersResult.error) {
@@ -172,8 +407,85 @@ async function getStatistics(): Promise<StatisticsState> {
       };
     }
 
+    if (coursesResult.error) {
+      return {
+        status: "error",
+        message: coursesResult.error.message
+      };
+    }
+
+    if (eventsResult.error) {
+      return {
+        status: "error",
+        message: eventsResult.error.message
+      };
+    }
+
     const players = (playersResult.data ?? []) as PlayerRow[];
     const rounds = (roundsResult.data ?? []) as RoundRow[];
+    const courses = (coursesResult.data ?? []) as CourseRow[];
+    const events = (eventsResult.data ?? []) as EventRow[];
+    const eventOptionsSource = activeSeason
+      ? events.filter((event) => event.season_id === activeSeason.id)
+      : events;
+    const selectedCourse =
+      courses.find((course) => course.id === filters.courseId) ?? courses[0] ?? null;
+    const selectedEvent =
+      eventOptionsSource.find((event) => event.id === filters.eventId) ?? null;
+    const selectedCourseId = selectedCourse?.id ?? "";
+    const selectedEventId = selectedEvent?.id ?? "";
+
+    let selectedCourseHoles: CourseHoleRow[] = [];
+    let roundHoles: RoundHoleRow[] = [];
+
+    if (selectedCourseId) {
+      const { data: courseHolesData, error: courseHolesError } = await supabase
+        .from("course_holes")
+        .select("course_id, hole_number, par, handicap, yardage")
+        .eq("course_id", selectedCourseId)
+        .order("hole_number", { ascending: true });
+
+      if (courseHolesError) {
+        return {
+          status: "error",
+          message: courseHolesError.message
+        };
+      }
+
+      selectedCourseHoles = (courseHolesData ?? []) as CourseHoleRow[];
+
+      const filteredRoundIds = rounds
+        .filter((round) => !selectedEventId || round.event_id === selectedEventId)
+        .map((round) => round.id);
+
+      if (filteredRoundIds.length > 0) {
+        let roundHolesQuery = supabase
+          .from("round_holes")
+          .select(
+            "id, round_id, player_id, event_id, course_id, hole_number, par, handicap, score, putts, fir, gir, penalty"
+          )
+          .eq("team_id", team.id)
+          .eq("course_id", selectedCourseId)
+          .in("round_id", filteredRoundIds);
+
+        if (selectedEventId) {
+          roundHolesQuery = roundHolesQuery.eq("event_id", selectedEventId);
+        }
+
+        const { data: roundHolesData, error: roundHolesError } = await roundHolesQuery
+          .order("hole_number", { ascending: true })
+          .order("created_at", { ascending: true });
+
+        if (roundHolesError) {
+          return {
+            status: "error",
+            message: roundHolesError.message
+          };
+        }
+
+        roundHoles = (roundHolesData ?? []) as RoundHoleRow[];
+      }
+    }
 
     const roundsByPlayer = new Map<string, RoundRow[]>();
 
@@ -221,11 +533,55 @@ async function getStatistics(): Promise<StatisticsState> {
         return a.playerName.localeCompare(b.playerName);
       });
 
+    const holeStats = buildHoleStats(selectedCourseHoles, roundHoles);
+    const hardestHoles = [...holeStats]
+      .filter((hole) => hole.roundsPlayed > 0 && hole.averageScoreToPar !== null)
+      .sort((a, b) => {
+        const bAverage = b.averageScoreToPar ?? Number.NEGATIVE_INFINITY;
+        const aAverage = a.averageScoreToPar ?? Number.NEGATIVE_INFINITY;
+
+        if (bAverage !== aAverage) {
+          return bAverage - aAverage;
+        }
+
+        return a.holeNumber - b.holeNumber;
+      })
+      .slice(0, 3);
+    const scorecardCount = new Set(roundHoles.map((hole) => hole.round_id)).size;
+    const playerCount = new Set(roundHoles.map((hole) => hole.player_id)).size;
+
     return {
       status: "ready",
       teamName: team.name,
       activeSeasonName: activeSeason?.name ?? null,
-      playerStats
+      playerStats,
+      holeBreakdown: {
+        courses: courses.map((course) => ({
+          id: course.id,
+          name: course.name,
+          location: course.location
+        })),
+        events: eventOptionsSource.map((event) => ({
+          id: event.id,
+          name: event.name,
+          eventDate: event.event_date,
+          eventType: event.event_type
+        })),
+        selectedCourseId,
+        selectedCourseName: selectedCourse?.name ?? null,
+        selectedEventId,
+        selectedEventName: selectedEvent?.name ?? null,
+        activeSeasonName: activeSeason?.name ?? null,
+        holes: holeStats,
+        hardestHoles,
+        scorecardCount,
+        playerCount,
+        note: buildHoleBreakdownNote(
+          selectedCourseId,
+          holeStats.length,
+          scorecardCount
+        )
+      }
     };
   } catch (error) {
     return {
@@ -238,8 +594,12 @@ async function getStatistics(): Promise<StatisticsState> {
   }
 }
 
-export default async function StatisticsPage() {
-  const statistics = await getStatistics();
+export default async function StatisticsPage({ searchParams }: StatisticsPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const statistics = await getStatistics({
+    courseId: getSearchValue(resolvedSearchParams.courseId),
+    eventId: getSearchValue(resolvedSearchParams.eventId)
+  });
 
   if (statistics.status === "error") {
     return (
@@ -297,6 +657,8 @@ export default async function StatisticsPage() {
           </div>
         </div>
       )}
+
+      <HoleBreakdownSection breakdown={statistics.holeBreakdown} />
     </section>
   );
 }
@@ -408,6 +770,232 @@ function PlayerStatRow({ player }: { player: PlayerStats }) {
           {formatAverage(player.averageThreePutts)}
         </p>
       </div>
+    </div>
+  );
+}
+
+function HoleBreakdownSection({ breakdown }: { breakdown: HoleBreakdown }) {
+  const hardestHoleNumbers = new Set(
+    breakdown.hardestHoles.map((hole) => hole.holeNumber)
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
+              Hole-by-Hole Breakdown
+            </p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">
+              Course Performance
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600">
+              {breakdown.selectedCourseName
+                ? `Showing ${breakdown.selectedCourseName}${
+                    breakdown.selectedEventName
+                      ? ` for ${breakdown.selectedEventName}`
+                      : " across selected season rounds"
+                  }.`
+                : "Select a course to view team scoring by hole."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+              {breakdown.scorecardCount} scorecards
+            </div>
+            <div className="rounded-md bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
+              {breakdown.playerCount} players
+            </div>
+            <div className="rounded-md bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
+              {breakdown.activeSeasonName ?? "All seasons"}
+            </div>
+          </div>
+        </div>
+
+        <form className="mt-6 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-gray-700">Course</span>
+            <select
+              name="courseId"
+              defaultValue={breakdown.selectedCourseId}
+              className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+            >
+              {breakdown.courses.length === 0 ? (
+                <option value="">No courses found</option>
+              ) : null}
+              {breakdown.courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}{course.location ? ` - ${course.location}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-gray-700">Event optional</span>
+            <select
+              name="eventId"
+              defaultValue={breakdown.selectedEventId}
+              className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+            >
+              <option value="">
+                {breakdown.activeSeasonName
+                  ? `All ${breakdown.activeSeasonName} events`
+                  : "All events"}
+              </option>
+              {breakdown.events.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {formatEventLabel(event)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            type="submit"
+            className="rounded-md bg-green-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-900"
+          >
+            Apply Filters
+          </button>
+        </form>
+      </div>
+
+      {breakdown.note ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium leading-6 text-amber-900">
+          {breakdown.note}
+        </div>
+      ) : null}
+
+      <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
+        <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
+          Top 3 Hardest Holes
+        </p>
+        {breakdown.hardestHoles.length === 0 ? (
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            Not enough hole-by-hole score data is available for this filter yet.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {breakdown.hardestHoles.map((hole, index) => (
+              <div
+                key={hole.holeNumber}
+                className="rounded-lg border border-amber-200 bg-amber-50/70 p-4"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                  #{index + 1} Hardest
+                </p>
+                <p className="mt-2 text-2xl font-bold text-gray-950">
+                  Hole {hole.holeNumber}
+                </p>
+                <p className="mt-1 text-sm text-gray-700">
+                  Avg to par: {formatToPar(hole.averageScoreToPar)}
+                </p>
+                <p className="mt-1 text-sm text-gray-700">
+                  Avg score: {formatAverage(hole.averageScore)} across {hole.roundsPlayed} rounds
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {breakdown.holes.length === 0 ? null : (
+        <div className="overflow-hidden rounded-lg border border-green-900/10 bg-white shadow-sm">
+          <div className="hidden grid-cols-[0.6fr_0.7fr_0.7fr_0.9fr_0.9fr_0.9fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr] gap-3 border-b border-gray-100 bg-green-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-green-900 2xl:grid">
+            <span>Hole</span>
+            <span>Par/HCP</span>
+            <span>Rounds</span>
+            <span>Avg Score</span>
+            <span>Avg +/-</span>
+            <span>Avg Putts</span>
+            <span>FIR</span>
+            <span>GIR</span>
+            <span>Avg Pen.</span>
+            <span>3-putts</span>
+            <span>3-putt %</span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {breakdown.holes.map((hole) => (
+              <HoleStatRow
+                key={hole.holeNumber}
+                hole={hole}
+                isHardest={hardestHoleNumbers.has(hole.holeNumber)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HoleStatRow({
+  hole,
+  isHardest
+}: {
+  hole: HoleStats;
+  isHardest: boolean;
+}) {
+  return (
+    <div
+      className={
+        isHardest
+          ? "grid gap-3 bg-amber-50/50 px-5 py-4 text-sm 2xl:grid-cols-[0.6fr_0.7fr_0.7fr_0.9fr_0.9fr_0.9fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr] 2xl:items-center"
+          : "grid gap-3 px-5 py-4 text-sm 2xl:grid-cols-[0.6fr_0.7fr_0.7fr_0.9fr_0.9fr_0.9fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr] 2xl:items-center"
+      }
+    >
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 2xl:hidden">
+          Hole
+        </p>
+        <div className="flex items-center gap-2">
+          <p className="font-semibold text-gray-950">{hole.holeNumber}</p>
+          {isHardest ? (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+              Hard
+            </span>
+          ) : null}
+        </div>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 2xl:hidden">
+          Par/HCP
+        </p>
+        <p className="text-gray-700">
+          Par {hole.par}{hole.handicap ? ` / HCP ${hole.handicap}` : ""}
+        </p>
+      </div>
+      <StatCell label="Rounds" value={hole.roundsPlayed.toString()} />
+      <StatCell label="Avg Score" value={formatAverage(hole.averageScore)} strong />
+      <StatCell label="Avg +/-" value={formatToPar(hole.averageScoreToPar)} strong />
+      <StatCell label="Avg Putts" value={formatAverage(hole.averagePutts)} />
+      <StatCell label="FIR" value={formatFirPercentage(hole)} />
+      <StatCell label="GIR" value={formatPercentage(hole.girPercentage)} />
+      <StatCell label="Avg Penalties" value={formatAverage(hole.averagePenalties)} />
+      <StatCell label="Three-putts" value={hole.threePuttCount.toString()} />
+      <StatCell label="Three-putt %" value={formatPercentage(hole.threePuttPercentage)} />
+    </div>
+  );
+}
+
+function StatCell({
+  label,
+  value,
+  strong = false
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 2xl:hidden">
+        {label}
+      </p>
+      <p className={strong ? "font-semibold text-gray-950" : "text-gray-700"}>
+        {value}
+      </p>
     </div>
   );
 }
