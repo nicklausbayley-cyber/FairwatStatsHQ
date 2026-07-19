@@ -114,8 +114,12 @@ export function LoginForm() {
 
           <div className="relative z-10">
             <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-xl font-black shadow-xl backdrop-blur">
-                FS
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/20 bg-white p-2 shadow-xl">
+                <img
+                  src="/fairway-stats-hq-logo.png"
+                  alt="Fairway Stats HQ logo"
+                  className="h-full w-full object-contain"
+                />
               </div>
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.28em] text-emerald-200">
@@ -158,6 +162,24 @@ export function LoginForm() {
 
         <section className="flex items-center justify-center bg-slate-50 px-6 py-12 sm:px-10">
           <div className="w-full max-w-md">
+            <div className="mb-8 flex justify-center lg:justify-start">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+                  <img
+                    src="/fairway-stats-hq-logo.png"
+                    alt="Fairway Stats HQ logo"
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-[0.18em] text-emerald-700">
+                    Fairway Stats HQ
+                  </p>
+                  <p className="text-xs text-slate-500">Golf performance tracking</p>
+                </div>
+              </div>
+            </div>
+
             <div className="mb-8 text-center lg:text-left">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-emerald-700">
                 Secure Sign In
