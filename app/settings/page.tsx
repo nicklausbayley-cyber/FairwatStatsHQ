@@ -4,7 +4,7 @@ import {
 } from "../../components/settings/season-management";
 import { TeamSettingsForm } from "../../components/settings/team-settings-form";
 import {
-  requireCurrentTeam,
+  requireTeamStaff,
   type CurrentTeamContext
 } from "../../lib/auth/get-current-team";
 
@@ -91,7 +91,7 @@ function toSeasonSettings(seasons: SeasonSettingsRow[]): SeasonSettings[] {
 }
 
 export default async function SettingsPage() {
-  const currentTeam = await requireCurrentTeam();
+  const currentTeam = await requireTeamStaff();
   const settings = await getSettingsData(currentTeam);
 
   if (settings.status === "error") {

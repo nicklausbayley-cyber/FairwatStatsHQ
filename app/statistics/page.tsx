@@ -1,5 +1,5 @@
 import {
-  requireCurrentTeam,
+  requireTeamStaff,
   type CurrentTeamContext
 } from "../../lib/auth/get-current-team";
 import {
@@ -660,7 +660,7 @@ async function getStatistics(
 
 export default async function StatisticsPage({ searchParams }: StatisticsPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
-  const currentTeam = await requireCurrentTeam();
+  const currentTeam = await requireTeamStaff();
   const statistics = await getStatistics({
     courseId: getSearchValue(resolvedSearchParams.courseId),
     eventId: getSearchValue(resolvedSearchParams.eventId)

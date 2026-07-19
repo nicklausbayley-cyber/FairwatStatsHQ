@@ -4,7 +4,7 @@ import {
   type CourseSummary
 } from "../../components/courses/course-manager";
 import {
-  requireCurrentTeam,
+  requireTeamStaff,
   type CurrentTeamContext
 } from "../../lib/auth/get-current-team";
 
@@ -106,7 +106,7 @@ async function getCoursesData(
 }
 
 export default async function CoursesPage() {
-  const currentTeam = await requireCurrentTeam();
+  const currentTeam = await requireTeamStaff();
   const coursesData = await getCoursesData(currentTeam);
 
   if (coursesData.status === "error") {

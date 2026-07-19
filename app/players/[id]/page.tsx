@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
+  isTeamStaff,
   requireCurrentTeam,
   type CurrentTeamContext
 } from "../../../lib/auth/get-current-team";
@@ -16,6 +18,7 @@ type PlayerPageProps = {
 type PlayerRow = {
   id: string;
   team_id: string;
+  profile_id: string | null;
   first_name: string;
   last_name: string;
   graduation_year: number | null;
@@ -68,6 +71,10 @@ type PlayerProfileState =
     }
   | {
       status: "not-found";
+      message: string;
+    }
+  | {
+      status: "restricted";
       message: string;
     }
   | {
@@ -185,11 +192,11 @@ async function getPlayerProfile(
   currentTeam: CurrentTeamContext
 ): Promise<PlayerProfileState> {
   try {
-    const { supabase, team } = currentTeam;
+    const { supabase, team, profile, role } = currentTeam;
 
     const { data: player, error: playerError } = await supabase
       .from("players")
-      .select("id, team_id, first_name, last_name, graduation_year, status")
+      .select("id, team_id, profile_id, first_name, last_name, graduation_year, status")
       .eq("id", playerId)
       .eq("team_id", team.id)
       .maybeSingle();
@@ -205,6 +212,13 @@ async function getPlayerProfile(
       return {
         status: "not-found",
         message: "Player profile not found."
+      };
+    }
+
+    if (!isTeamStaff(role) && player.profile_id !== profile.id) {
+      return {
+        status: "restricted",
+        message: "Players can only view their own profile."
       };
     }
 
@@ -278,6 +292,10 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   const { id } = await params;
   const currentTeam = await requireCurrentTeam();
   const profile = await getPlayerProfile(id, currentTeam);
+
+  if (profile.status === "restricted") {
+    redirect("/enter-score");
+  }
 
   if (profile.status === "error") {
     return (

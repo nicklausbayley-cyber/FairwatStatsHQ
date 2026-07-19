@@ -35,6 +35,7 @@ type EnterScoreState =
       players: PlayerOption[];
       events: EventOption[];
       courses: CourseOption[];
+      isPlayerEntryLocked: boolean;
     }
   | {
       status: "empty";
@@ -49,13 +50,103 @@ async function getEnterScoreData(
   currentTeam: CurrentTeamContext
 ): Promise<EnterScoreState> {
   try {
-    const { supabase, team } = currentTeam;
+    const { supabase, team, profile, role } = currentTeam;
 
     const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
     const eventsQuery = supabase
       .from("events")
       .select("id, name, event_date, event_type")
       .eq("team_id", team.id);
+
+    const eventsRequest = (activeSeason
+      ? eventsQuery.eq("season_id", activeSeason.id)
+      : eventsQuery
+    )
+      .order("event_date", { ascending: false })
+      .order("name", { ascending: true });
+
+    const coursesRequest = supabase
+      .from("courses")
+      .select("id, name, location")
+      .eq("team_id", team.id)
+      .order("name", { ascending: true });
+
+    if (role === "player") {
+      const { data: player, error: playerError } = await supabase
+        .from("players")
+        .select("id, first_name, last_name, status")
+        .eq("team_id", team.id)
+        .eq("profile_id", profile.id)
+        .maybeSingle();
+
+      if (playerError) {
+        return {
+          status: "error",
+          message: playerError.message
+        };
+      }
+
+      if (!player) {
+        return {
+          status: "empty",
+          message:
+            "Your player profile is not connected yet. Please contact your coach."
+        };
+      }
+
+      if (player.status !== "active") {
+        return {
+          status: "empty",
+          message:
+            "Your player profile is not active yet. Please contact your coach."
+        };
+      }
+
+      const [eventsResult, coursesResult] = await Promise.all([
+        eventsRequest,
+        coursesRequest
+      ]);
+
+      if (eventsResult.error) {
+        return {
+          status: "error",
+          message: eventsResult.error.message
+        };
+      }
+
+      if (coursesResult.error) {
+        return {
+          status: "error",
+          message: coursesResult.error.message
+        };
+      }
+
+      return {
+        status: "ready",
+        teamId: team.id,
+        teamName: team.name,
+        activeSeasonName: activeSeason?.name ?? null,
+        isPlayerEntryLocked: true,
+        players: [
+          {
+            id: player.id,
+            firstName: player.first_name,
+            lastName: player.last_name
+          }
+        ],
+        events: (eventsResult.data ?? []).map((event) => ({
+          id: event.id,
+          name: event.name,
+          eventDate: event.event_date,
+          eventType: event.event_type
+        })),
+        courses: (coursesResult.data ?? []).map((course) => ({
+          id: course.id,
+          name: course.name,
+          location: course.location
+        }))
+      };
+    }
 
     const [playersResult, eventsResult, coursesResult] = await Promise.all([
       supabase
@@ -65,17 +156,8 @@ async function getEnterScoreData(
         .eq("status", "active")
         .order("last_name", { ascending: true })
         .order("first_name", { ascending: true }),
-      (activeSeason
-        ? eventsQuery.eq("season_id", activeSeason.id)
-        : eventsQuery
-      )
-        .order("event_date", { ascending: false })
-        .order("name", { ascending: true }),
-      supabase
-        .from("courses")
-        .select("id, name, location")
-        .eq("team_id", team.id)
-        .order("name", { ascending: true })
+      eventsRequest,
+      coursesRequest
     ]);
 
     if (playersResult.error) {
@@ -104,6 +186,7 @@ async function getEnterScoreData(
       teamId: team.id,
       teamName: team.name,
       activeSeasonName: activeSeason?.name ?? null,
+      isPlayerEntryLocked: false,
       players: (playersResult.data ?? []).map((player) => ({
         id: player.id,
         firstName: player.first_name,
@@ -177,6 +260,7 @@ export default async function EnterScorePage() {
           players={scoreEntry.players}
           events={scoreEntry.events}
           courses={scoreEntry.courses}
+          isPlayerEntryLocked={scoreEntry.isPlayerEntryLocked}
         />
       )}
     </section>

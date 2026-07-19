@@ -53,6 +53,7 @@ type ScoreFormProps = {
   players: PlayerOption[];
   events: EventOption[];
   courses: CourseOption[];
+  isPlayerEntryLocked?: boolean;
 };
 
 type SubmitRoundInput = {
@@ -124,11 +125,11 @@ function getDefaultsForHoles(holes: "9" | "18") {
     : { par: "72", fairwaysPossible: "14", girPossible: "18" };
 }
 
-function createInitialState(defaultCourseId = ""): FormState {
+function createInitialState(defaultCourseId = "", defaultPlayerId = ""): FormState {
   const defaults = getDefaultsForHoles("18");
 
   return {
-    playerId: "",
+    playerId: defaultPlayerId,
     eventId: "",
     courseId: defaultCourseId,
     playedOn: getTodayDate(),
@@ -234,10 +235,15 @@ export function ScoreForm({
   activeSeasonName,
   players,
   events,
-  courses
+  courses,
+  isPlayerEntryLocked = false
 }: ScoreFormProps) {
   const defaultCourseId = courses[0]?.id ?? "";
-  const [form, setForm] = useState<FormState>(() => createInitialState(defaultCourseId));
+  const lockedPlayer = isPlayerEntryLocked ? players[0] ?? null : null;
+  const defaultPlayerId = lockedPlayer?.id ?? "";
+  const [form, setForm] = useState<FormState>(() =>
+    createInitialState(defaultCourseId, defaultPlayerId)
+  );
   const [entryMode, setEntryMode] = useState<EntryMode>(
     courses.length > 0 ? "hole-by-hole" : "summary"
   );
@@ -478,7 +484,7 @@ export function ScoreForm({
       });
 
       if (result.success) {
-        setForm(createInitialState(defaultCourseId));
+        setForm(createInitialState(defaultCourseId, defaultPlayerId));
         if (entryMode === "hole-by-hole") {
           setHoleEntries(createHoleEntries(courseHoles));
         }
@@ -518,6 +524,12 @@ export function ScoreForm({
           label="Player"
           value={form.playerId}
           onChange={(value) => updateField("playerId", value)}
+          disabled={isPlayerEntryLocked}
+          helpText={
+            lockedPlayer
+              ? "Rounds submitted from your account are tied to your player profile."
+              : undefined
+          }
           required
         >
           <option value="">Choose a player</option>
@@ -815,12 +827,16 @@ function SelectField({
   value,
   onChange,
   required = false,
+  disabled = false,
+  helpText,
   children
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
+  disabled?: boolean;
+  helpText?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -830,10 +846,12 @@ function SelectField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
-        className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+        disabled={disabled}
+        className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
       >
         {children}
       </select>
+      {helpText ? <p className="text-xs leading-5 text-gray-500">{helpText}</p> : null}
     </label>
   );
 }

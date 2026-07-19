@@ -5,8 +5,16 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import type { TeamBranding } from "../../lib/team/branding";
 import { createClient } from "../../lib/supabase/client";
+import type { UserRole } from "../../lib/auth/get-current-team";
 
-const navItems = [
+type HeaderUser = {
+  name: string;
+  email: string;
+  role: UserRole;
+  playerProfileHref: string | null;
+};
+
+const staffNavItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/enter-score", label: "Enter Score" },
   { href: "/roster", label: "Roster" },
@@ -34,15 +42,37 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function getRoleLabel(role: UserRole) {
+  return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+function getNavItems(user: HeaderUser | null) {
+  if (!user) {
+    return [];
+  }
+
+  if (user.role === "player") {
+    return [
+      { href: "/enter-score", label: "Enter Score" },
+      ...(user.playerProfileHref
+        ? [{ href: user.playerProfileHref, label: "My Profile" }]
+        : [])
+    ];
+  }
+
+  return staffNavItems;
+}
+
 export function SiteHeader({
   branding,
-  isAuthenticated
+  user
 }: {
   branding: TeamBranding | null;
-  isAuthenticated: boolean;
+  user: HeaderUser | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const navItems = getNavItems(user);
   const primaryColor = branding?.primaryColor ?? fallbackPrimaryColor;
   const secondaryColor = branding?.secondaryColor ?? fallbackSecondaryColor;
   const displayName = branding?.name ?? "Fairway Stats HQ";
@@ -100,8 +130,8 @@ export function SiteHeader({
           </div>
         </Link>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {isAuthenticated ? (
+        <div className="flex flex-wrap items-center gap-3">
+          {user ? (
             <nav className="flex flex-wrap gap-2" aria-label="Primary navigation">
               {navItems.map((item) => {
                 const isActive = isActivePath(pathname, item.href);
@@ -137,15 +167,25 @@ export function SiteHeader({
               Login
             </Link>
           )}
-          {isAuthenticated ? (
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="rounded-md border px-3 py-2 text-sm font-semibold transition hover:bg-gray-50"
-              style={{ borderColor: `${secondaryColor}22`, color: secondaryColor }}
-            >
-              Sign Out
-            </button>
+          {user ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="rounded-md bg-gray-50 px-3 py-2 text-sm">
+                <p className="font-semibold text-gray-900">
+                  {user.name || user.email}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {user.email ? `${user.email} | ` : ""}{getRoleLabel(user.role)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="rounded-md border px-3 py-2 text-sm font-semibold transition hover:bg-gray-50"
+                style={{ borderColor: `${secondaryColor}22`, color: secondaryColor }}
+              >
+                Sign Out
+              </button>
+            </div>
           ) : null}
         </div>
       </div>

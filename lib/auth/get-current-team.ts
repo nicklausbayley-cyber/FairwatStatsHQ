@@ -155,3 +155,13 @@ export async function requireCurrentTeam() {
 
   return currentTeam.data;
 }
+
+export async function requireTeamStaff() {
+  const currentTeam = await requireCurrentTeam();
+
+  if (!isTeamStaff(currentTeam.role)) {
+    redirect("/enter-score");
+  }
+
+  return currentTeam;
+}

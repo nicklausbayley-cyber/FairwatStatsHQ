@@ -9,6 +9,10 @@ type FormMessage = {
   text: string;
 };
 
+function getSignedInRedirectPath(role: string | null | undefined) {
+  return role === "player" ? "/enter-score" : "/dashboard";
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -29,7 +33,7 @@ export function LoginForm() {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password
       });
@@ -39,8 +43,28 @@ export function LoginForm() {
         return;
       }
 
-      setMessage({ type: "success", text: "Signed in. Opening dashboard..." });
-      router.push("/dashboard");
+      let profileRole: string | null = null;
+
+      if (data.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", data.user.id)
+          .maybeSingle();
+
+        profileRole = profile?.role ?? null;
+      }
+
+      const nextPath = getSignedInRedirectPath(profileRole);
+
+      setMessage({
+        type: "success",
+        text:
+          nextPath === "/enter-score"
+            ? "Signed in. Opening score entry..."
+            : "Signed in. Opening dashboard..."
+      });
+      router.push(nextPath);
       router.refresh();
     } catch (error) {
       setMessage({
