@@ -43,6 +43,10 @@ export async function SiteShell({ children }: { children: ReactNode }) {
         }
     : null;
 
+  if (!currentTeam.data && !platformAdmin.data) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="min-h-screen">
       <SiteHeader branding={branding} user={user} />
