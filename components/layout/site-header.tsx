@@ -10,8 +10,9 @@ import type { UserRole } from "../../lib/auth/get-current-team";
 type HeaderUser = {
   name: string;
   email: string;
-  role: UserRole;
+  role: UserRole | "platform";
   playerProfileHref: string | null;
+  isPlatformAdmin: boolean;
 };
 
 const staffNavItems = [
@@ -42,7 +43,11 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function getRoleLabel(role: UserRole) {
+function getRoleLabel(role: HeaderUser["role"]) {
+  if (role === "platform") {
+    return "Platform Admin";
+  }
+
   return role.charAt(0).toUpperCase() + role.slice(1);
 }
 
@@ -51,16 +56,25 @@ function getNavItems(user: HeaderUser | null) {
     return [];
   }
 
+  const platformNavItem = user.isPlatformAdmin
+    ? [{ href: "/onboarding", label: "Onboarding" }]
+    : [];
+
+  if (user.role === "platform") {
+    return platformNavItem;
+  }
+
   if (user.role === "player") {
     return [
       { href: "/enter-score", label: "Enter Score" },
       ...(user.playerProfileHref
         ? [{ href: user.playerProfileHref, label: "My Profile" }]
-        : [])
+        : []),
+      ...platformNavItem
     ];
   }
 
-  return staffNavItems;
+  return [...staffNavItems, ...platformNavItem];
 }
 
 export function SiteHeader({

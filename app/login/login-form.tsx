@@ -15,8 +15,22 @@ type FormMessage = {
   text: string;
 };
 
-function getSignedInRedirectPath(role: string | null | undefined) {
-  return role === "player" ? "/enter-score" : "/dashboard";
+async function getSignedInRedirectPath(role: string | null | undefined) {
+  if (role === "player") {
+    return "/enter-score";
+  }
+
+  if (role === "admin" || role === "coach") {
+    return "/dashboard";
+  }
+
+  const onboardingResponse = await fetch("/api/onboarding");
+
+  if (onboardingResponse.ok) {
+    return "/onboarding";
+  }
+
+  return null;
 }
 
 export function LoginForm() {
@@ -61,14 +75,25 @@ export function LoginForm() {
         profileRole = profile?.role ?? null;
       }
 
-      const nextPath = getSignedInRedirectPath(profileRole);
+      const nextPath = await getSignedInRedirectPath(profileRole);
+
+      if (!nextPath) {
+        setMessage({
+          type: "error",
+          text:
+            "Signed in, but no team profile is connected to this account. Please contact your coach or platform admin."
+        });
+        return;
+      }
 
       setMessage({
         type: "success",
         text:
           nextPath === "/enter-score"
             ? "Signed in. Opening score entry..."
-            : "Signed in. Opening dashboard..."
+            : nextPath === "/onboarding"
+              ? "Signed in. Opening onboarding..."
+              : "Signed in. Opening dashboard..."
       });
       router.push(nextPath);
       router.refresh();

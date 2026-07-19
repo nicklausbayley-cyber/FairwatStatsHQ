@@ -1,10 +1,14 @@
 import type { ReactNode } from "react";
 import { SiteHeader } from "./site-header";
 import { getCurrentTeam } from "../../lib/auth/get-current-team";
+import { getPlatformAdminStatus } from "../../lib/auth/platform-admin";
 import { getTeamBrandingFromTeam } from "../../lib/team/branding";
 
 export async function SiteShell({ children }: { children: ReactNode }) {
-  const currentTeam = await getCurrentTeam();
+  const [currentTeam, platformAdmin] = await Promise.all([
+    getCurrentTeam(),
+    getPlatformAdminStatus()
+  ]);
   let playerProfileHref: string | null = null;
 
   if (currentTeam.data?.role === "player") {
@@ -26,8 +30,17 @@ export async function SiteShell({ children }: { children: ReactNode }) {
         name: currentTeam.data.profile.full_name,
         email: currentTeam.data.profile.email || currentTeam.data.user.email || "",
         role: currentTeam.data.role,
-        playerProfileHref
+        playerProfileHref,
+        isPlatformAdmin: platformAdmin.data !== null
       }
+    : platformAdmin.data
+      ? {
+          name: platformAdmin.data.email,
+          email: platformAdmin.data.email,
+          role: "platform" as const,
+          playerProfileHref: null,
+          isPlatformAdmin: true
+        }
     : null;
 
   return (
