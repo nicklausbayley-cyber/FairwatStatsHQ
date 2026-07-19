@@ -3,6 +3,18 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import type { EventListRow } from "../../lib/events/events";
+import {
+  Badge,
+  Message,
+  cn,
+  dangerButtonClassName,
+  inputClassName,
+  primaryButtonClassName,
+  secondaryButtonClassName,
+  tableHeaderClassName,
+  tableRowClassName,
+  tableShellClassName
+} from "../ui/primitives";
 
 type EventsTableProps = {
   events: EventListRow[];
@@ -166,19 +178,11 @@ export function EventsTable({ events }: EventsTableProps) {
   return (
     <div className="space-y-4">
       {message ? (
-        <div
-          className={
-            message.type === "success"
-              ? "rounded-lg border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-900"
-              : "rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900"
-          }
-        >
-          {message.text}
-        </div>
+        <Message type={message.type}>{message.text}</Message>
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border border-green-900/10 bg-white shadow-sm">
-        <div className="hidden grid-cols-[1.1fr_0.85fr_0.9fr_1.1fr_1fr_1.1fr] gap-4 border-b border-gray-100 bg-green-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-green-900 xl:grid">
+      <div className={tableShellClassName}>
+        <div className={cn(tableHeaderClassName, "xl:grid xl:grid-cols-[1.1fr_0.85fr_0.9fr_1.1fr_1fr_1.1fr]")}>
           <span>Name</span>
           <span>Type</span>
           <span>Date</span>
@@ -193,15 +197,15 @@ export function EventsTable({ events }: EventsTableProps) {
 
             return (
               <div key={event.id} className="border-b border-gray-100 last:border-b-0">
-                <div className="grid gap-3 px-5 py-4 text-sm xl:grid-cols-[1.1fr_0.85fr_0.9fr_1.1fr_1fr_1.1fr] xl:items-center">
+                <div className={cn(tableRowClassName, "xl:grid-cols-[1.1fr_0.85fr_0.9fr_1.1fr_1fr_1.1fr] xl:items-center")}>
                   <Cell label="Name" value={event.name} strong />
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
                       Type
                     </p>
-                    <span className="inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-800">
+                    <Badge>
                       {formatEventType(event.event_type)}
-                    </span>
+                    </Badge>
                   </div>
                   <Cell label="Date" value={formatEventDate(event.event_date)} />
                   <Cell label="Course" value={event.course_name ?? "Not set"} />
@@ -217,7 +221,7 @@ export function EventsTable({ events }: EventsTableProps) {
                           setMessage(null);
                           setEditingEventId(isEditing ? null : event.id);
                         }}
-                        className="rounded-md border border-green-200 px-3 py-1.5 text-xs font-semibold text-green-800 transition hover:bg-green-50"
+                        className={cn(secondaryButtonClassName, "px-3 py-1.5 text-xs")}
                       >
                         {isEditing ? "Cancel" : "Edit"}
                       </button>
@@ -225,7 +229,7 @@ export function EventsTable({ events }: EventsTableProps) {
                         type="button"
                         onClick={() => deleteEvent(event)}
                         disabled={pendingEventId === event.id}
-                        className="rounded-md border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
+                        className={dangerButtonClassName}
                       >
                         {pendingEventId === event.id ? "Deleting..." : "Delete"}
                       </button>
@@ -312,34 +316,32 @@ function EditEventForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 bg-green-50/40 px-5 py-5">
+    <form onSubmit={handleSubmit} className="space-y-4 border-t border-slate-100 bg-slate-50/70 px-5 py-5">
       {message ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900">
-          {message.text}
-        </div>
+        <Message type={message.type}>{message.text}</Message>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <label className="space-y-2 xl:col-span-2">
-          <span className="text-sm font-semibold text-gray-700">Event name</span>
+          <span className="text-sm font-semibold text-slate-700">Event name</span>
           <input
             type="text"
             value={form.name}
             onChange={(event) => updateField("name", event.target.value)}
             required
-            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+            className={inputClassName}
           />
         </label>
 
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-gray-700">Event type</span>
+          <span className="text-sm font-semibold text-slate-700">Event type</span>
           <select
             value={form.eventType}
             onChange={(event) =>
               updateField("eventType", event.target.value as FormState["eventType"])
             }
             required
-            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+            className={inputClassName}
           >
             <option value="">Choose type</option>
             {eventTypeOptions.map((option) => (
@@ -351,33 +353,33 @@ function EditEventForm({
         </label>
 
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-gray-700">Event date</span>
+          <span className="text-sm font-semibold text-slate-700">Event date</span>
           <input
             type="date"
             value={form.eventDate}
             onChange={(event) => updateField("eventDate", event.target.value)}
             required
-            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+            className={inputClassName}
           />
         </label>
 
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-gray-700">Course name</span>
+          <span className="text-sm font-semibold text-slate-700">Course name</span>
           <input
             type="text"
             value={form.courseName}
             onChange={(event) => updateField("courseName", event.target.value)}
-            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+            className={inputClassName}
           />
         </label>
 
         <label className="space-y-2 md:col-span-2 xl:col-span-5">
-          <span className="text-sm font-semibold text-gray-700">Location</span>
+          <span className="text-sm font-semibold text-slate-700">Location</span>
           <input
             type="text"
             value={form.location}
             onChange={(event) => updateField("location", event.target.value)}
-            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+            className={inputClassName}
           />
         </label>
       </div>
@@ -386,14 +388,14 @@ function EditEventForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-white"
+          className={secondaryButtonClassName}
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-md bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-gray-300"
+          className={primaryButtonClassName}
         >
           {isSubmitting ? "Saving..." : "Save Changes"}
         </button>

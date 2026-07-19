@@ -3,6 +3,7 @@ import {
   type SeasonSettings
 } from "../../components/settings/season-management";
 import { TeamSettingsForm } from "../../components/settings/team-settings-form";
+import { EmptyState, PageHeader } from "../../components/ui/primitives";
 import {
   requireTeamStaff,
   type CurrentTeamContext
@@ -98,10 +99,7 @@ export default async function SettingsPage() {
     return (
       <section className="space-y-6">
         <SettingsHeader />
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
-          <p className="font-semibold">Settings unavailable</p>
-          <p className="mt-1">{settings.message}</p>
-        </div>
+        <EmptyState title="Settings unavailable" message={settings.message} />
       </section>
     );
   }
@@ -110,9 +108,7 @@ export default async function SettingsPage() {
     return (
       <section className="space-y-6">
         <SettingsHeader />
-        <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          {settings.message}
-        </div>
+        <EmptyState message={settings.message} />
       </section>
     );
   }
@@ -147,22 +143,14 @@ function SettingsHeader({
   schoolName?: string | null;
 }) {
   return (
-    <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
-      <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-        Team Setup
-      </p>
-      <div className="mt-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-950 sm:text-4xl">
-            Settings
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-7 text-gray-600">
-            {teamName
-              ? `${teamName}${schoolName ? ` at ${schoolName}` : ""} branding, seasons, and team details.`
-              : "Manage team branding, seasons, and basic setup details."}
-          </p>
-        </div>
-      </div>
-    </div>
+    <PageHeader
+      eyebrow="Team Setup"
+      title="Settings"
+      description={
+        teamName
+          ? `${teamName}${schoolName ? ` at ${schoolName}` : ""} branding, seasons, and team details.`
+          : "Manage team branding, seasons, and basic setup details."
+      }
+    />
   );
 }

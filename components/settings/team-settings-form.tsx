@@ -2,6 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  FormSection,
+  Message,
+  appPanelClassName,
+  cn,
+  inputClassName,
+  primaryButtonClassName
+} from "../ui/primitives";
 
 type TeamSettings = {
   name: string;
@@ -201,82 +209,72 @@ export function TeamSettingsForm({ team }: { team: TeamSettings }) {
     <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
       <form
         onSubmit={handleSubmit}
-        className="space-y-5 rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8"
+        className="space-y-0"
       >
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-            Team Settings
-          </p>
-          <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">
-            Branding Details
-          </h2>
-        </div>
+        <FormSection
+          eyebrow="Team Settings"
+          title="Branding Details"
+          description="Control the team identity shown across the app header and settings preview."
+          footer={
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className={primaryButtonClassName}
+              >
+                {isSubmitting ? "Saving..." : "Save Settings"}
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-5">
+            {message ? <Message type={message.type}>{message.text}</Message> : null}
 
-        {message ? (
-          <div
-            className={
-              message.type === "success"
-                ? "rounded-lg border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-900"
-                : "rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900"
-            }
-          >
-            {message.text}
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextField
+                label="Team name"
+                value={form.name}
+                onChange={(value) => updateField("name", value)}
+                required
+              />
+              <TextField
+                label="School name"
+                value={form.schoolName}
+                onChange={(value) => updateField("schoolName", value)}
+              />
+              <TextField
+                label="Mascot"
+                value={form.mascot}
+                onChange={(value) => updateField("mascot", value)}
+              />
+              <TextField
+                label="Contact email"
+                type="email"
+                value={form.contactEmail}
+                onChange={(value) => updateField("contactEmail", value)}
+              />
+              <ColorField
+                label="Primary color"
+                value={form.primaryColor}
+                onChange={(value) => updateField("primaryColor", value)}
+              />
+              <ColorField
+                label="Secondary color"
+                value={form.secondaryColor}
+                onChange={(value) => updateField("secondaryColor", value)}
+              />
+              <div className="md:col-span-2">
+                <LogoUploadField
+                  inputRef={logoInputRef}
+                  logoFileName={logoFile?.name ?? null}
+                  logoPreviewUrl={logoPreviewUrl}
+                  teamName={form.name}
+                  onChange={handleLogoChange}
+                />
+              </div>
+            </div>
           </div>
-        ) : null}
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <TextField
-            label="Team name"
-            value={form.name}
-            onChange={(value) => updateField("name", value)}
-            required
-          />
-          <TextField
-            label="School name"
-            value={form.schoolName}
-            onChange={(value) => updateField("schoolName", value)}
-          />
-          <TextField
-            label="Mascot"
-            value={form.mascot}
-            onChange={(value) => updateField("mascot", value)}
-          />
-          <TextField
-            label="Contact email"
-            type="email"
-            value={form.contactEmail}
-            onChange={(value) => updateField("contactEmail", value)}
-          />
-          <ColorField
-            label="Primary color"
-            value={form.primaryColor}
-            onChange={(value) => updateField("primaryColor", value)}
-          />
-          <ColorField
-            label="Secondary color"
-            value={form.secondaryColor}
-            onChange={(value) => updateField("secondaryColor", value)}
-          />
-          <div className="md:col-span-2">
-            <LogoUploadField
-              inputRef={logoInputRef}
-              logoFileName={logoFile?.name ?? null}
-              logoPreviewUrl={logoPreviewUrl}
-              teamName={form.name}
-              onChange={handleLogoChange}
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end border-t border-gray-100 pt-5">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="rounded-md bg-green-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-gray-300"
-          >
-            {isSubmitting ? "Saving..." : "Save Settings"}
-          </button>
-        </div>
+        </FormSection>
       </form>
 
       <BrandPreview form={form} logoPreviewUrl={logoPreviewUrl} />
@@ -299,13 +297,13 @@ function TextField({
 }) {
   return (
     <label className="space-y-2">
-      <span className="text-sm font-semibold text-gray-700">{label}</span>
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
       <input
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
-        className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+        className={inputClassName}
       />
     </label>
   );
@@ -322,15 +320,15 @@ function ColorField({
 }) {
   return (
     <label className="space-y-2">
-      <span className="text-sm font-semibold text-gray-700">{label}</span>
-      <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2 focus-within:border-green-700 focus-within:ring-2 focus-within:ring-green-100">
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
+      <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 focus-within:border-green-700 focus-within:ring-2 focus-within:ring-green-100">
         <input
           type="color"
           value={value}
           onChange={(event) => onChange(event.target.value)}
           className="h-8 w-10 cursor-pointer rounded border border-gray-200 bg-white"
         />
-        <span className="font-mono text-sm text-gray-700">{value}</span>
+        <span className="font-mono text-sm text-slate-700">{value}</span>
       </div>
     </label>
   );
@@ -353,8 +351,8 @@ function LogoUploadField({
 
   return (
     <div className="space-y-2">
-      <span className="text-sm font-semibold text-gray-700">Team logo</span>
-      <div className="flex flex-col gap-4 rounded-md border border-gray-200 bg-white p-4 sm:flex-row sm:items-center">
+      <span className="text-sm font-semibold text-slate-700">Team logo</span>
+      <div className="flex flex-col gap-4 rounded-md border border-slate-200 bg-white p-4 sm:flex-row sm:items-center">
         <div
           className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md bg-green-900 text-lg font-bold text-white ring-1 ring-gray-200"
           style={
@@ -376,12 +374,12 @@ function LogoUploadField({
             type="file"
             accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
             onChange={onChange}
-            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-green-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-900"
+            className="block w-full text-sm text-slate-700 file:mr-4 file:rounded-md file:border-0 file:bg-green-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-900 focus:outline-none"
           />
-          <p className="text-xs leading-5 text-gray-500">
+          <p className="text-xs leading-5 text-slate-500">
             Square PNG or JPG logos work best.
           </p>
-          <p className="text-xs font-medium text-gray-600">
+          <p className="text-xs font-medium text-slate-600">
             {logoFileName
               ? `Ready to upload: ${logoFileName}`
               : logoPreviewUrl
@@ -404,7 +402,7 @@ function BrandPreview({
   const initials = getInitials(form.name);
 
   return (
-    <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
+    <div className={cn(appPanelClassName, "p-6 sm:p-8")}>
       <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
         Preview
       </p>

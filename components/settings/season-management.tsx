@@ -2,6 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import {
+  Badge,
+  EmptyState,
+  Message,
+  appPanelClassName,
+  cn,
+  inputClassName,
+  primaryButtonClassName,
+  secondaryButtonClassName,
+  tableHeaderClassName,
+  tableRowClassName
+} from "../ui/primitives";
 
 export type SeasonSettings = {
   id: string;
@@ -166,7 +178,7 @@ export function SeasonManagement({ seasons }: { seasons: SeasonSettings[] }) {
   }
 
   return (
-    <div className="space-y-6 rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
+    <div className={cn(appPanelClassName, "space-y-6 p-6 sm:p-8")}>
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
@@ -176,26 +188,18 @@ export function SeasonManagement({ seasons }: { seasons: SeasonSettings[] }) {
             Active Season
           </h2>
         </div>
-        <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+        <Badge tone={activeSeason ? "green" : "slate"}>
           {activeSeason ? activeSeason.name : "No active season"}
-        </div>
+        </Badge>
       </div>
 
       {message ? (
-        <div
-          className={
-            message.type === "success"
-              ? "rounded-lg border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-900"
-              : "rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900"
-          }
-        >
-          {message.text}
-        </div>
+        <Message type={message.type}>{message.text}</Message>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-5">
-          <p className="text-sm font-semibold text-gray-600">Current active season</p>
+        <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-5">
+          <p className="text-sm font-semibold text-slate-600">Current active season</p>
           {activeSeason ? (
             <dl className="mt-4 space-y-3 text-sm">
               <SeasonInfo label="Name" value={activeSeason.name} strong />
@@ -203,50 +207,50 @@ export function SeasonManagement({ seasons }: { seasons: SeasonSettings[] }) {
               <SeasonInfo label="End date" value={formatDate(activeSeason.endsOn)} />
             </dl>
           ) : (
-            <p className="mt-4 text-sm leading-6 text-gray-600">
+            <p className="mt-4 text-sm leading-6 text-slate-600">
               Create a season or set one active to focus dashboards, statistics,
               events, and score entry.
             </p>
           )}
         </div>
 
-        <form onSubmit={handleCreateSeason} className="rounded-lg border border-gray-200 p-5">
-          <p className="text-sm font-semibold text-gray-700">Create new season</p>
+        <form onSubmit={handleCreateSeason} className="rounded-lg border border-slate-200 p-5">
+          <p className="text-sm font-semibold text-slate-700">Create new season</p>
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             <label className="space-y-2 md:col-span-3">
-              <span className="text-sm font-semibold text-gray-700">Season name</span>
+              <span className="text-sm font-semibold text-slate-700">Season name</span>
               <input
                 type="text"
                 value={form.name}
                 onChange={(event) => updateField("name", event.target.value)}
                 placeholder="2026 Season"
                 required
-                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+                className={inputClassName}
               />
             </label>
             <label className="space-y-2">
-              <span className="text-sm font-semibold text-gray-700">Start date</span>
+              <span className="text-sm font-semibold text-slate-700">Start date</span>
               <input
                 type="date"
                 value={form.startsOn}
                 onChange={(event) => updateField("startsOn", event.target.value)}
-                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+                className={inputClassName}
               />
             </label>
             <label className="space-y-2">
-              <span className="text-sm font-semibold text-gray-700">End date</span>
+              <span className="text-sm font-semibold text-slate-700">End date</span>
               <input
                 type="date"
                 value={form.endsOn}
                 onChange={(event) => updateField("endsOn", event.target.value)}
-                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+                className={inputClassName}
               />
             </label>
             <div className="flex items-end">
               <button
                 type="submit"
                 disabled={isCreating}
-                className="w-full rounded-md bg-green-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-gray-300"
+                className={cn(primaryButtonClassName, "w-full")}
               >
                 {isCreating ? "Creating..." : "Create Season"}
               </button>
@@ -260,18 +264,18 @@ export function SeasonManagement({ seasons }: { seasons: SeasonSettings[] }) {
           <h3 className="text-lg font-bold tracking-tight text-gray-950">
             Existing Seasons
           </h3>
-          <span className="text-sm font-semibold text-gray-500">
+          <span className="text-sm font-semibold text-slate-500">
             {seasons.length} total
           </span>
         </div>
 
         {seasons.length === 0 ? (
-          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50/60 p-5 text-sm leading-6 text-gray-600">
-            No seasons found for this team yet.
+          <div className="mt-4">
+            <EmptyState message="No seasons found for this team yet." />
           </div>
         ) : (
-          <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
-            <div className="hidden grid-cols-[1.2fr_0.9fr_0.9fr_0.8fr_0.8fr] gap-4 border-b border-gray-100 bg-green-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-green-900 lg:grid">
+          <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
+            <div className={cn(tableHeaderClassName, "lg:grid lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.8fr_0.8fr]")}>
               <span>Name</span>
               <span>Start</span>
               <span>End</span>
@@ -282,7 +286,7 @@ export function SeasonManagement({ seasons }: { seasons: SeasonSettings[] }) {
               {seasons.map((season) => (
                 <div
                   key={season.id}
-                  className="grid gap-3 px-5 py-4 text-sm lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.8fr_0.8fr] lg:items-center"
+                  className={cn(tableRowClassName, "lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.8fr_0.8fr] lg:items-center")}
                 >
                   <SeasonCell label="Name" value={season.name} strong />
                   <SeasonCell label="Start" value={formatDate(season.startsOn)} />
@@ -292,11 +296,12 @@ export function SeasonManagement({ seasons }: { seasons: SeasonSettings[] }) {
                       Status
                     </p>
                     <span
-                      className={
+                      className={cn(
+                        "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
                         season.isActive
-                          ? "inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-800"
-                          : "inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600"
-                      }
+                          ? "border-green-200 bg-green-50 text-green-800"
+                          : "border-slate-200 bg-slate-100 text-slate-600"
+                      )}
                     >
                       {season.isActive ? "Active" : "Inactive"}
                     </span>
@@ -309,7 +314,7 @@ export function SeasonManagement({ seasons }: { seasons: SeasonSettings[] }) {
                       type="button"
                       onClick={() => setActiveSeason(season)}
                       disabled={season.isActive || activePendingId === season.id}
-                      className="rounded-md border border-green-200 px-3 py-1.5 text-xs font-semibold text-green-800 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
+                      className={cn(secondaryButtonClassName, "px-3 py-1.5 text-xs")}
                     >
                       {activePendingId === season.id
                         ? "Setting..."

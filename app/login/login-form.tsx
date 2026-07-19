@@ -3,6 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { createClient } from "../../lib/supabase/client";
+import {
+  FormSection,
+  Message,
+  inputClassName,
+  primaryButtonClassName
+} from "../../components/ui/primitives";
 
 type FormMessage = {
   type: "error" | "success";
@@ -82,67 +88,54 @@ export function LoginForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-5 rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8"
+      className="space-y-0"
     >
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-          Account Access
-        </p>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight text-gray-950 sm:text-4xl">
-          Login
-        </h1>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-gray-600">
-          Sign in with the email and password connected to your team profile.
-        </p>
-      </div>
+      <FormSection
+        eyebrow="Account Access"
+        title="Login"
+        description="Sign in with the email and password connected to your team profile."
+        footer={
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={primaryButtonClassName}
+            >
+              {isSubmitting ? "Signing in..." : "Sign In"}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-5">
+          {message ? <Message type={message.type}>{message.text}</Message> : null}
 
-      {message ? (
-        <div
-          className={
-            message.type === "success"
-              ? "rounded-lg border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-900"
-              : "rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900"
-          }
-        >
-          {message.text}
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2">
+              <span className="text-sm font-semibold text-slate-700">Email</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                required
+                className={inputClassName}
+              />
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-sm font-semibold text-slate-700">Password</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+                className={inputClassName}
+              />
+            </label>
+          </div>
         </div>
-      ) : null}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2">
-          <span className="text-sm font-semibold text-gray-700">Email</span>
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            autoComplete="email"
-            required
-            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
-          />
-        </label>
-
-        <label className="space-y-2">
-          <span className="text-sm font-semibold text-gray-700">Password</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="current-password"
-            required
-            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
-          />
-        </label>
-      </div>
-
-      <div className="flex justify-end border-t border-gray-100 pt-5">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded-md bg-green-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-gray-300"
-        >
-          {isSubmitting ? "Signing in..." : "Sign In"}
-        </button>
-      </div>
+      </FormSection>
     </form>
   );
 }

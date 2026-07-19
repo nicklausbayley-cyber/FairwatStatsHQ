@@ -6,6 +6,18 @@ import {
   getActiveSeasonForTeam,
   type ActiveSeason
 } from "../../lib/seasons/active-season";
+import {
+  Badge,
+  EmptyState,
+  Message,
+  PageHeader,
+  cn,
+  inputClassName,
+  primaryButtonClassName,
+  tableHeaderClassName,
+  tableRowClassName,
+  tableShellClassName
+} from "../../components/ui/primitives";
 
 export const dynamic = "force-dynamic";
 
@@ -670,10 +682,7 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
     return (
       <section className="space-y-6">
         <StatisticsHeader />
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
-          <p className="font-semibold">Statistics unavailable</p>
-          <p className="mt-1">{statistics.message}</p>
-        </div>
+        <EmptyState title="Statistics unavailable" message={statistics.message} />
       </section>
     );
   }
@@ -682,9 +691,7 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
     return (
       <section className="space-y-6">
         <StatisticsHeader />
-        <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          {statistics.message}
-        </div>
+        <EmptyState message={statistics.message} />
       </section>
     );
   }
@@ -698,12 +705,10 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
       />
 
       {statistics.playerStats.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          No players found for this team yet.
-        </div>
+        <EmptyState message="No players found for this team yet." />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-green-900/10 bg-white shadow-sm">
-          <div className="hidden grid-cols-[1.3fr_0.7fr_0.9fr_0.8fr_0.9fr_1fr_0.8fr_0.9fr_0.9fr] gap-4 border-b border-gray-100 bg-green-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-green-900 xl:grid">
+        <div className={tableShellClassName}>
+          <div className={cn(tableHeaderClassName, "xl:grid xl:grid-cols-[1.3fr_0.7fr_0.9fr_0.8fr_0.9fr_1fr_0.8fr_0.9fr_0.9fr]")}>
             <span>Player</span>
             <span>Rounds</span>
             <span>Avg Score</span>
@@ -738,41 +743,33 @@ function StatisticsHeader({
   playerCount?: number;
 }) {
   return (
-    <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
-      <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-        Analytics
-      </p>
-      <div className="mt-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-950 sm:text-4xl">
-            Statistics
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-7 text-gray-600">
-            {teamName
-              ? `${teamName} player analytics loaded from Supabase.`
-              : "Player analytics will appear once Supabase data is available."}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <PageHeader
+      eyebrow="Analytics"
+      title="Statistics"
+      description={
+        teamName
+          ? `${teamName} player analytics, scoring trends, and hole-by-hole performance.`
+          : "Player analytics will appear once Supabase data is available."
+      }
+      meta={
+        <>
           {typeof playerCount === "number" ? (
-            <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
-              {playerCount} players
-            </div>
+            <Badge>{playerCount} players</Badge>
           ) : null}
           {teamName ? (
-            <div className="rounded-md bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
+            <Badge tone={activeSeasonName ? "green" : "slate"}>
               {activeSeasonName ? `Active: ${activeSeasonName}` : "All seasons"}
-            </div>
+            </Badge>
           ) : null}
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    />
   );
 }
 
 function PlayerStatRow({ player }: { player: PlayerStats }) {
   return (
-    <div className="grid gap-3 px-5 py-4 text-sm xl:grid-cols-[1.3fr_0.7fr_0.9fr_0.8fr_0.9fr_1fr_0.8fr_0.9fr_0.9fr] xl:items-center">
+    <div className={cn(tableRowClassName, "xl:grid-cols-[1.3fr_0.7fr_0.9fr_0.8fr_0.9fr_1fr_0.8fr_0.9fr_0.9fr] xl:items-center")}>
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
           Player
@@ -798,16 +795,16 @@ function HoleBreakdownSection({ breakdown }: { breakdown: HoleBreakdown }) {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
+      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 sm:p-8">
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
               Hole-by-Hole Breakdown
             </p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
               Course Performance
             </h2>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600">
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
               {breakdown.selectedCourseName
                 ? `Showing ${breakdown.selectedCourseName}${
                     breakdown.selectedEventName
@@ -818,25 +815,19 @@ function HoleBreakdownSection({ breakdown }: { breakdown: HoleBreakdown }) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
-              {breakdown.scorecardCount} scorecards
-            </div>
-            <div className="rounded-md bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
-              {breakdown.playerCount} players
-            </div>
-            <div className="rounded-md bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
-              {breakdown.activeSeasonName ?? "All seasons"}
-            </div>
+            <Badge>{breakdown.scorecardCount} scorecards</Badge>
+            <Badge tone="slate">{breakdown.playerCount} players</Badge>
+            <Badge tone="slate">{breakdown.activeSeasonName ?? "All seasons"}</Badge>
           </div>
         </div>
 
         <form className="mt-6 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
           <label className="space-y-2">
-            <span className="text-sm font-semibold text-gray-700">Course</span>
+            <span className="text-sm font-semibold text-slate-700">Course</span>
             <select
               name="courseId"
               defaultValue={breakdown.selectedCourseId}
-              className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+              className={inputClassName}
             >
               {breakdown.courses.length === 0 ? (
                 <option value="">No courses found</option>
@@ -850,11 +841,11 @@ function HoleBreakdownSection({ breakdown }: { breakdown: HoleBreakdown }) {
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm font-semibold text-gray-700">Event optional</span>
+            <span className="text-sm font-semibold text-slate-700">Event optional</span>
             <select
               name="eventId"
               defaultValue={breakdown.selectedEventId}
-              className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+              className={inputClassName}
             >
               <option value="">
                 {breakdown.activeSeasonName
@@ -871,7 +862,7 @@ function HoleBreakdownSection({ breakdown }: { breakdown: HoleBreakdown }) {
 
           <button
             type="submit"
-            className="rounded-md bg-green-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-900"
+            className={primaryButtonClassName}
           >
             Apply Filters
           </button>
@@ -879,17 +870,15 @@ function HoleBreakdownSection({ breakdown }: { breakdown: HoleBreakdown }) {
       </div>
 
       {breakdown.note ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium leading-6 text-amber-900">
-          {breakdown.note}
-        </div>
+        <Message type="error">{breakdown.note}</Message>
       ) : null}
 
-      <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
+      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 sm:p-8">
         <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
           Top 3 Hardest Holes
         </p>
         {breakdown.hardestHoles.length === 0 ? (
-          <p className="mt-3 text-sm leading-6 text-gray-600">
+          <p className="mt-3 text-sm leading-6 text-slate-600">
             Not enough hole-by-hole score data is available for this filter yet.
           </p>
         ) : (
@@ -897,18 +886,18 @@ function HoleBreakdownSection({ breakdown }: { breakdown: HoleBreakdown }) {
             {breakdown.hardestHoles.map((hole, index) => (
               <div
                 key={hole.holeNumber}
-                className="rounded-lg border border-amber-200 bg-amber-50/70 p-4"
+                className="rounded-lg border border-amber-200 bg-amber-50/80 p-4 shadow-sm"
               >
                 <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
                   #{index + 1} Hardest
                 </p>
-                <p className="mt-2 text-2xl font-bold text-gray-950">
+                <p className="mt-2 text-2xl font-bold text-slate-950">
                   Hole {hole.holeNumber}
                 </p>
-                <p className="mt-1 text-sm text-gray-700">
+                <p className="mt-1 text-sm text-slate-700">
                   Avg to par: {formatToPar(hole.averageScoreToPar)}
                 </p>
-                <p className="mt-1 text-sm text-gray-700">
+                <p className="mt-1 text-sm text-slate-700">
                   Avg score: {formatAverage(hole.averageScore)} across {hole.roundsPlayed} rounds
                 </p>
               </div>
@@ -918,8 +907,8 @@ function HoleBreakdownSection({ breakdown }: { breakdown: HoleBreakdown }) {
       </div>
 
       {breakdown.holes.length === 0 ? null : (
-        <div className="overflow-hidden rounded-lg border border-green-900/10 bg-white shadow-sm">
-          <div className="hidden grid-cols-[0.6fr_0.7fr_0.7fr_0.9fr_0.9fr_0.9fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr] gap-3 border-b border-gray-100 bg-green-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-green-900 2xl:grid">
+        <div className={tableShellClassName}>
+          <div className={cn(tableHeaderClassName, "2xl:grid 2xl:grid-cols-[0.6fr_0.7fr_0.7fr_0.9fr_0.9fr_0.9fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr]")}>
             <span>Hole</span>
             <span>Par/HCP</span>
             <span>Rounds</span>
@@ -956,22 +945,22 @@ function HoleStatRow({
 }) {
   return (
     <div
-      className={
-        isHardest
-          ? "grid gap-3 bg-amber-50/50 px-5 py-4 text-sm 2xl:grid-cols-[0.6fr_0.7fr_0.7fr_0.9fr_0.9fr_0.9fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr] 2xl:items-center"
-          : "grid gap-3 px-5 py-4 text-sm 2xl:grid-cols-[0.6fr_0.7fr_0.7fr_0.9fr_0.9fr_0.9fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr] 2xl:items-center"
-      }
+      className={cn(
+        tableRowClassName,
+        "2xl:grid-cols-[0.6fr_0.7fr_0.7fr_0.9fr_0.9fr_0.9fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr] 2xl:items-center",
+        isHardest && "bg-amber-50/60 hover:bg-amber-50"
+      )}
     >
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 2xl:hidden">
           Hole
         </p>
         <div className="flex items-center gap-2">
-          <p className="font-semibold text-gray-950">{hole.holeNumber}</p>
+          <p className="font-semibold text-slate-950">{hole.holeNumber}</p>
           {isHardest ? (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+            <Badge tone="amber">
               Hard
-            </span>
+            </Badge>
           ) : null}
         </div>
       </div>
@@ -979,19 +968,19 @@ function HoleStatRow({
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 2xl:hidden">
           Par/HCP
         </p>
-        <p className="text-gray-700">
+        <p className="text-slate-700">
           Par {hole.par}{hole.handicap ? ` / HCP ${hole.handicap}` : ""}
         </p>
       </div>
-      <StatCell label="Rounds" value={hole.roundsPlayed.toString()} />
-      <StatCell label="Avg Score" value={formatAverage(hole.averageScore)} strong />
-      <StatCell label="Avg +/-" value={formatToPar(hole.averageScoreToPar)} strong />
-      <StatCell label="Avg Putts" value={formatAverage(hole.averagePutts)} />
-      <StatCell label="FIR" value={formatFirPercentage(hole)} />
-      <StatCell label="GIR" value={formatPercentage(hole.girPercentage)} />
-      <StatCell label="Avg Penalties" value={formatAverage(hole.averagePenalties)} />
-      <StatCell label="Three-putts" value={hole.threePuttCount.toString()} />
-      <StatCell label="Three-putt %" value={formatPercentage(hole.threePuttPercentage)} />
+      <StatCell label="Rounds" value={hole.roundsPlayed.toString()} hideLabelAt="2xl" />
+      <StatCell label="Avg Score" value={formatAverage(hole.averageScore)} strong hideLabelAt="2xl" />
+      <StatCell label="Avg +/-" value={formatToPar(hole.averageScoreToPar)} strong hideLabelAt="2xl" />
+      <StatCell label="Avg Putts" value={formatAverage(hole.averagePutts)} hideLabelAt="2xl" />
+      <StatCell label="FIR" value={formatFirPercentage(hole)} hideLabelAt="2xl" />
+      <StatCell label="GIR" value={formatPercentage(hole.girPercentage)} hideLabelAt="2xl" />
+      <StatCell label="Avg Penalties" value={formatAverage(hole.averagePenalties)} hideLabelAt="2xl" />
+      <StatCell label="Three-putts" value={hole.threePuttCount.toString()} hideLabelAt="2xl" />
+      <StatCell label="Three-putt %" value={formatPercentage(hole.threePuttPercentage)} hideLabelAt="2xl" />
     </div>
   );
 }
@@ -999,18 +988,25 @@ function HoleStatRow({
 function StatCell({
   label,
   value,
-  strong = false
+  strong = false,
+  hideLabelAt = "xl"
 }: {
   label: string;
   value: string;
   strong?: boolean;
+  hideLabelAt?: "xl" | "2xl";
 }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden 2xl:hidden">
+      <p
+        className={cn(
+          "text-xs font-semibold uppercase tracking-wide text-gray-500",
+          hideLabelAt === "2xl" ? "2xl:hidden" : "xl:hidden"
+        )}
+      >
         {label}
       </p>
-      <p className={strong ? "font-semibold text-gray-950" : "text-gray-700"}>
+      <p className={strong ? "font-semibold text-slate-950" : "text-slate-700"}>
         {value}
       </p>
     </div>

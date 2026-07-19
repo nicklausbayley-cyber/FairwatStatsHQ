@@ -88,16 +88,19 @@ export function SiteHeader({
   }
 
   return (
-    <header className="border-b bg-white" style={{ borderColor: `${primaryColor}22` }}>
+    <header
+      className="sticky top-0 z-30 border-b bg-white/95 shadow-sm shadow-slate-900/5 backdrop-blur"
+      style={{ borderColor: `${primaryColor}22` }}
+    >
       <div
         className="h-1 w-full"
         style={{ backgroundColor: primaryColor }}
         aria-hidden="true"
       />
-      <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <Link href="/" className="group flex min-w-0 items-center gap-3">
           <div
-            className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md text-base font-bold text-white shadow-sm"
+            className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg text-base font-bold text-white shadow-sm ring-1 ring-slate-900/10"
             style={{ backgroundColor: secondaryColor }}
           >
             {branding?.logoUrl ? (
@@ -115,13 +118,13 @@ export function SiteHeader({
           </div>
           <div className="min-w-0">
             <p
-              className="text-xs font-semibold uppercase tracking-wide"
+              className="text-[11px] font-semibold uppercase tracking-wide"
               style={{ color: primaryColor }}
             >
               Fairway Stats HQ
             </p>
             <p
-              className="truncate text-xl font-bold tracking-tight"
+              className="truncate text-lg font-bold tracking-tight sm:text-xl"
               style={{ color: secondaryColor }}
             >
               {displayName}
@@ -130,9 +133,12 @@ export function SiteHeader({
           </div>
         </Link>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 flex-col gap-3 lg:items-end">
           {user ? (
-            <nav className="flex flex-wrap gap-2" aria-label="Primary navigation">
+            <nav
+              className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50/80 p-1"
+              aria-label="Primary navigation"
+            >
               {navItems.map((item) => {
                 const isActive = isActivePath(pathname, item.href);
 
@@ -141,12 +147,13 @@ export function SiteHeader({
                     key={item.href}
                     href={item.href}
                     aria-current={isActive ? "page" : undefined}
-                    className="rounded-md px-3 py-2 text-sm font-medium transition hover:bg-green-50"
+                    className="shrink-0 rounded-md px-3 py-2 text-sm font-semibold transition hover:bg-white"
                     style={
                       isActive
                         ? {
-                            backgroundColor: primaryColor,
-                            color: "#ffffff"
+                            backgroundColor: "#ffffff",
+                            color: primaryColor,
+                            boxShadow: `inset 0 0 0 1px ${primaryColor}33`
                           }
                         : {
                             color: secondaryColor
@@ -168,19 +175,29 @@ export function SiteHeader({
             </Link>
           )}
           {user ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="rounded-md bg-gray-50 px-3 py-2 text-sm">
-                <p className="font-semibold text-gray-900">
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              <div className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
+                <p className="truncate font-semibold text-slate-950">
                   {user.name || user.email}
                 </p>
-                <p className="text-xs text-gray-500">
-                  {user.email ? `${user.email} | ` : ""}{getRoleLabel(user.role)}
+                <p className="truncate text-xs text-slate-500">
+                  {user.email}
                 </p>
               </div>
+              <span
+                className="rounded-full border px-2.5 py-1 text-xs font-semibold"
+                style={{
+                  borderColor: `${primaryColor}33`,
+                  backgroundColor: `${primaryColor}12`,
+                  color: primaryColor
+                }}
+              >
+                {getRoleLabel(user.role)}
+              </span>
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="rounded-md border px-3 py-2 text-sm font-semibold transition hover:bg-gray-50"
+                className="rounded-md border bg-white px-3 py-2 text-sm font-semibold shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-green-100"
                 style={{ borderColor: `${secondaryColor}22`, color: secondaryColor }}
               >
                 Sign Out

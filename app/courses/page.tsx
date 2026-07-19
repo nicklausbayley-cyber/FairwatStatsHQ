@@ -3,6 +3,7 @@ import {
   type CourseHole,
   type CourseSummary
 } from "../../components/courses/course-manager";
+import { EmptyState, PageHeader } from "../../components/ui/primitives";
 import {
   requireTeamStaff,
   type CurrentTeamContext
@@ -113,10 +114,7 @@ export default async function CoursesPage() {
     return (
       <section className="space-y-6">
         <CoursesHeader />
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
-          <p className="font-semibold">Courses unavailable</p>
-          <p className="mt-1">{coursesData.message}</p>
-        </div>
+        <EmptyState title="Courses unavailable" message={coursesData.message} />
       </section>
     );
   }
@@ -125,9 +123,7 @@ export default async function CoursesPage() {
     return (
       <section className="space-y-6">
         <CoursesHeader />
-        <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          {coursesData.message}
-        </div>
+        <EmptyState message={coursesData.message} />
       </section>
     );
   }
@@ -137,16 +133,10 @@ export default async function CoursesPage() {
 
 function CoursesHeader() {
   return (
-    <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
-      <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-        Course Setup
-      </p>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight text-gray-950 sm:text-4xl">
-        Courses
-      </h1>
-      <p className="mt-3 max-w-2xl text-base leading-7 text-gray-600">
-        Course setup will be available after team data is loaded.
-      </p>
-    </div>
+    <PageHeader
+      eyebrow="Course Setup"
+      title="Courses"
+      description="Course setup will be available after team data is loaded."
+    />
   );
 }

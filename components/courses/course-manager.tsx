@@ -2,6 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
+import {
+  Badge,
+  EmptyState,
+  FormSection,
+  Message,
+  PageHeader,
+  cn,
+  inputClassName,
+  primaryButtonClassName
+} from "../ui/primitives";
 
 export type CourseHole = {
   holeNumber: number;
@@ -222,86 +232,62 @@ export function CourseManager({ courses }: { courses: CourseSummary[] }) {
 
   return (
     <section className="space-y-6">
-      <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
-        <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-          Course Setup
-        </p>
-        <div className="mt-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-950 sm:text-4xl">
-              Courses
-            </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-gray-600">
-              Build course records with hole-by-hole par, handicap, and yardage for score entry.
-            </p>
-          </div>
-          <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
-            {courses.length} courses
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Course Setup"
+        title="Courses"
+        description="Build course records with hole-by-hole par, handicap, and yardage for score entry."
+        meta={<Badge>{courses.length} courses</Badge>}
+      />
 
       {message ? (
-        <div
-          className={
-            message.type === "success"
-              ? "rounded-lg border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-900"
-              : "rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900"
-          }
-        >
-          {message.text}
-        </div>
+        <Message type={message.type}>{message.text}</Message>
       ) : null}
 
       <form
         onSubmit={createCourse}
-        className="space-y-5 rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8"
+        className="space-y-0"
       >
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-            Course Management
-          </p>
-          <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">
-            Add Course
-          </h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
-          <label className="space-y-2">
-            <span className="text-sm font-semibold text-gray-700">Course name</span>
-            <input
-              type="text"
-              value={newCourseName}
-              onChange={(event) => setNewCourseName(event.target.value)}
-              required
-              className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
-            />
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-semibold text-gray-700">Location</span>
-            <input
-              type="text"
-              value={newCourseLocation}
-              onChange={(event) => setNewCourseLocation(event.target.value)}
-              className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={isCreating}
-            className="rounded-md bg-green-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-gray-300"
-          >
-            {isCreating ? "Adding..." : "Add Course"}
-          </button>
-        </div>
+        <FormSection
+          eyebrow="Course Management"
+          title="Add Course"
+          description="Create a course shell first, then save its 9- or 18-hole setup below."
+        >
+          <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <label className="space-y-2">
+              <span className="text-sm font-semibold text-slate-700">Course name</span>
+              <input
+                type="text"
+                value={newCourseName}
+                onChange={(event) => setNewCourseName(event.target.value)}
+                required
+                className={inputClassName}
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-semibold text-slate-700">Location</span>
+              <input
+                type="text"
+                value={newCourseLocation}
+                onChange={(event) => setNewCourseLocation(event.target.value)}
+                className={inputClassName}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={isCreating}
+              className={primaryButtonClassName}
+            >
+              {isCreating ? "Adding..." : "Add Course"}
+            </button>
+          </div>
+        </FormSection>
       </form>
 
       {courses.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          No courses found yet. Add a course to start setting up holes.
-        </div>
+        <EmptyState message="No courses found yet. Add a course to start setting up holes." />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[0.85fr_1.35fr]">
-          <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm">
+          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5">
             <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
               Existing Courses
             </p>
@@ -311,14 +297,15 @@ export function CourseManager({ courses }: { courses: CourseSummary[] }) {
                   key={course.id}
                   type="button"
                   onClick={() => chooseCourse(course.id)}
-                  className={
+                  className={cn(
+                    "w-full rounded-md border p-4 text-left transition focus:outline-none focus:ring-2 focus:ring-green-100",
                     selectedCourse?.id === course.id
-                      ? "w-full rounded-md border border-green-700 bg-green-50 p-4 text-left shadow-sm"
-                      : "w-full rounded-md border border-gray-200 bg-white p-4 text-left transition hover:bg-gray-50"
-                  }
+                      ? "border-green-700 bg-green-50 shadow-sm"
+                      : "border-slate-200 bg-white hover:border-green-200 hover:bg-green-50/40"
+                  )}
                 >
-                  <p className="font-semibold text-gray-950">{course.name}</p>
-                  <p className="mt-1 text-sm text-gray-600">
+                  <p className="font-semibold text-slate-950">{course.name}</p>
+                  <p className="mt-1 text-sm text-slate-600">
                     {course.location || "Location not set"}
                   </p>
                   <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-green-700">
@@ -331,23 +318,23 @@ export function CourseManager({ courses }: { courses: CourseSummary[] }) {
 
           <form
             onSubmit={saveHoleSetup}
-            className="space-y-5 rounded-lg border border-green-900/10 bg-white p-6 shadow-sm"
+            className="space-y-5 rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5"
           >
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
                   Hole Setup
                 </p>
-                <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">
+                <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
                   {selectedCourse?.name ?? "Select a Course"}
                 </h2>
               </div>
               <label className="space-y-2">
-                <span className="text-sm font-semibold text-gray-700">Holes</span>
+                <span className="text-sm font-semibold text-slate-700">Holes</span>
                 <select
                   value={holeCount}
                   onChange={(event) => changeHoleCount(Number(event.target.value) as 9 | 18)}
-                  className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+                  className={inputClassName}
                 >
                   <option value={9}>9 holes</option>
                   <option value={18}>18 holes</option>
@@ -359,20 +346,20 @@ export function CourseManager({ courses }: { courses: CourseSummary[] }) {
               {holes.map((hole, index) => (
                 <div
                   key={hole.holeNumber}
-                  className="grid gap-3 rounded-md border border-gray-200 p-4 sm:grid-cols-[0.6fr_0.8fr_1fr_1fr] sm:items-end"
+                  className="grid gap-3 rounded-md border border-slate-200 bg-slate-50/60 p-4 sm:grid-cols-[0.6fr_0.8fr_1fr_1fr] sm:items-end"
                 >
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Hole
                     </p>
-                    <p className="mt-2 text-lg font-bold text-gray-950">{hole.holeNumber}</p>
+                    <p className="mt-2 text-lg font-bold text-slate-950">{hole.holeNumber}</p>
                   </div>
                   <label className="space-y-2">
-                    <span className="text-sm font-semibold text-gray-700">Par</span>
+                    <span className="text-sm font-semibold text-slate-700">Par</span>
                     <select
                       value={hole.par}
                       onChange={(event) => updateHole(index, "par", event.target.value)}
-                      className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+                      className={inputClassName}
                     >
                       {[3, 4, 5, 6].map((par) => (
                         <option key={par} value={par}>
@@ -398,11 +385,11 @@ export function CourseManager({ courses }: { courses: CourseSummary[] }) {
               ))}
             </div>
 
-            <div className="flex justify-end border-t border-gray-100 pt-5">
+            <div className="flex justify-end border-t border-slate-100 pt-5">
               <button
                 type="submit"
                 disabled={!selectedCourse || isSavingHoles}
-                className="rounded-md bg-green-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-gray-300"
+                className={primaryButtonClassName}
               >
                 {isSavingHoles ? "Saving..." : "Save Hole Setup"}
               </button>
@@ -429,7 +416,7 @@ function NumberField({
 }) {
   return (
     <label className="space-y-2">
-      <span className="text-sm font-semibold text-gray-700">{label}</span>
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
       <input
         type="number"
         value={value}
@@ -437,7 +424,7 @@ function NumberField({
         min={min}
         max={max}
         inputMode="numeric"
-        className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+        className={inputClassName}
       />
     </label>
   );

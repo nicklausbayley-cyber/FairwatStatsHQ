@@ -4,6 +4,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import type { PlayerRosterRow } from "../../lib/players/roster";
+import {
+  Badge,
+  EmptyState,
+  Message,
+  cn,
+  dangerButtonClassName,
+  inputClassName,
+  primaryButtonClassName,
+  secondaryButtonClassName,
+  tableHeaderClassName,
+  tableRowClassName,
+  tableShellClassName
+} from "../ui/primitives";
 
 type RosterTableProps = {
   players: PlayerRosterRow[];
@@ -133,17 +146,17 @@ export function RosterTable({ players }: RosterTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-lg border border-green-900/10 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm shadow-slate-900/5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-gray-950">Roster List</p>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="text-sm font-semibold text-slate-950">Roster List</p>
+          <p className="mt-1 text-sm text-slate-500">
             {showInactive
               ? "Showing active and inactive players."
               : "Showing active players only."}
           </p>
         </div>
         {inactiveCount > 0 ? (
-          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+          <label className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
             <input
               type="checkbox"
               checked={showInactive}
@@ -156,24 +169,14 @@ export function RosterTable({ players }: RosterTableProps) {
       </div>
 
       {message ? (
-        <div
-          className={
-            message.type === "success"
-              ? "rounded-lg border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-900"
-              : "rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900"
-          }
-        >
-          {message.text}
-        </div>
+        <Message type={message.type}>{message.text}</Message>
       ) : null}
 
       {visiblePlayers.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          No active players to show. Turn on inactive players to view the full roster.
-        </div>
+        <EmptyState message="No active players to show. Turn on inactive players to view the full roster." />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-green-900/10 bg-white shadow-sm">
-          <div className="hidden grid-cols-[1.1fr_1.1fr_0.8fr_0.8fr_1.2fr] gap-4 border-b border-gray-100 bg-green-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-green-900 lg:grid">
+        <div className={tableShellClassName}>
+          <div className={cn(tableHeaderClassName, "lg:grid lg:grid-cols-[1.1fr_1.1fr_0.8fr_0.8fr_1.2fr]")}>
             <span>First Name</span>
             <span>Last Name</span>
             <span>Graduation</span>
@@ -188,14 +191,14 @@ export function RosterTable({ players }: RosterTableProps) {
 
               return (
                 <div key={player.id} className="border-b border-gray-100 last:border-b-0">
-                  <div className="grid gap-3 px-5 py-4 text-sm lg:grid-cols-[1.1fr_1.1fr_0.8fr_0.8fr_1.2fr] lg:items-center">
+                  <div className={cn(tableRowClassName, "lg:grid-cols-[1.1fr_1.1fr_0.8fr_0.8fr_1.2fr] lg:items-center")}>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
                         First Name
                       </p>
                       <Link
                         href={`/players/${player.id}`}
-                        className="font-medium text-green-800 transition hover:text-green-950"
+                        className="font-semibold text-green-800 transition hover:text-green-950"
                       >
                         {player.first_name}
                       </Link>
@@ -218,9 +221,9 @@ export function RosterTable({ players }: RosterTableProps) {
                       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
                         Status
                       </p>
-                      <span className="inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold capitalize text-green-800">
+                      <Badge tone={isInactive ? "slate" : "green"} className="capitalize">
                         {player.status}
-                      </span>
+                      </Badge>
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
@@ -233,7 +236,7 @@ export function RosterTable({ players }: RosterTableProps) {
                             setMessage(null);
                             setEditingPlayerId(isEditing ? null : player.id);
                           }}
-                          className="rounded-md border border-green-200 px-3 py-1.5 text-xs font-semibold text-green-800 transition hover:bg-green-50"
+                          className={cn(secondaryButtonClassName, "px-3 py-1.5 text-xs")}
                         >
                           {isEditing ? "Cancel" : "Edit"}
                         </button>
@@ -241,7 +244,7 @@ export function RosterTable({ players }: RosterTableProps) {
                           type="button"
                           onClick={() => deactivatePlayer(player)}
                           disabled={isInactive || pendingPlayerId === player.id}
-                          className="rounded-md border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
+                          className={dangerButtonClassName}
                         >
                           {pendingPlayerId === player.id
                             ? "Saving..."
@@ -332,38 +335,36 @@ function EditPlayerForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 bg-green-50/40 px-5 py-5">
+    <form onSubmit={handleSubmit} className="space-y-4 border-t border-slate-100 bg-slate-50/70 px-5 py-5">
       {message ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900">
-          {message.text}
-        </div>
+        <Message type={message.type}>{message.text}</Message>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-gray-700">First name</span>
+          <span className="text-sm font-semibold text-slate-700">First name</span>
           <input
             type="text"
             value={form.firstName}
             onChange={(event) => updateField("firstName", event.target.value)}
             required
-            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+            className={inputClassName}
           />
         </label>
 
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-gray-700">Last name</span>
+          <span className="text-sm font-semibold text-slate-700">Last name</span>
           <input
             type="text"
             value={form.lastName}
             onChange={(event) => updateField("lastName", event.target.value)}
             required
-            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+            className={inputClassName}
           />
         </label>
 
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-gray-700">
+          <span className="text-sm font-semibold text-slate-700">
             Graduation year
           </span>
           <input
@@ -373,18 +374,18 @@ function EditPlayerForm({
             min={2000}
             max={2100}
             inputMode="numeric"
-            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+            className={inputClassName}
           />
         </label>
 
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-gray-700">Status</span>
+          <span className="text-sm font-semibold text-slate-700">Status</span>
           <select
             value={form.status}
             onChange={(event) =>
               updateField("status", event.target.value as FormState["status"])
             }
-            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm capitalize text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+            className={inputClassName}
           >
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -396,14 +397,14 @@ function EditPlayerForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-white"
+          className={secondaryButtonClassName}
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-md bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-gray-300"
+          className={primaryButtonClassName}
         >
           {isSubmitting ? "Saving..." : "Save Changes"}
         </button>

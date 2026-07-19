@@ -1,6 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  EmptyState,
+  Message,
+  appPanelClassName,
+  cn,
+  inputClassName,
+  primaryButtonClassName,
+  secondaryButtonClassName
+} from "../../components/ui/primitives";
 
 type PlayerOption = {
   id: string;
@@ -505,18 +514,10 @@ export function ScoreForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-6 rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8"
+      className={cn(appPanelClassName, "space-y-6 p-6 sm:p-8")}
     >
       {message ? (
-        <div
-          className={
-            message.type === "success"
-              ? "rounded-lg border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-900"
-              : "rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900"
-          }
-        >
-          {message.text}
-        </div>
+        <Message type={message.type}>{message.text}</Message>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -571,46 +572,46 @@ export function ScoreForm({
         </SelectField>
 
         <label className="space-y-2">
-          <span className="text-sm font-semibold text-gray-700">Played date</span>
+          <span className="text-sm font-semibold text-slate-700">Played date</span>
           <input
             type="date"
             value={form.playedOn}
             onChange={(event) => updateField("playedOn", event.target.value)}
             required
-            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+            className={inputClassName}
           />
         </label>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-4">
-        <p className="text-sm font-semibold text-gray-700">Entry mode</p>
+      <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+        <p className="text-sm font-semibold text-slate-700">Entry mode</p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
             onClick={() => setEntryMode("hole-by-hole")}
             disabled={courses.length === 0}
-            className={
-              entryMode === "hole-by-hole"
-                ? "rounded-md bg-green-800 px-4 py-2 text-sm font-semibold text-white"
-                : "rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
-            }
+            className={cn(
+              secondaryButtonClassName,
+              entryMode === "hole-by-hole" &&
+                "border-green-700 bg-green-800 text-white hover:bg-green-900 hover:text-white"
+            )}
           >
             Hole-by-Hole Entry
           </button>
           <button
             type="button"
             onClick={() => setEntryMode("summary")}
-            className={
-              entryMode === "summary"
-                ? "rounded-md bg-green-800 px-4 py-2 text-sm font-semibold text-white"
-                : "rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-green-50"
-            }
+            className={cn(
+              secondaryButtonClassName,
+              entryMode === "summary" &&
+                "border-green-700 bg-green-800 text-white hover:bg-green-900 hover:text-white"
+            )}
           >
             Manual Summary
           </button>
         </div>
         {courses.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-600">
+          <p className="mt-3 text-sm text-slate-600">
             Add a course on the Courses page to use hole-by-hole entry.
           </p>
         ) : null}
@@ -629,18 +630,18 @@ export function ScoreForm({
       )}
 
       <label className="block space-y-2">
-        <span className="text-sm font-semibold text-gray-700">Notes</span>
+        <span className="text-sm font-semibold text-slate-700">Notes</span>
         <textarea
           value={form.notes}
           onChange={(event) => updateField("notes", event.target.value)}
           rows={4}
-          className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+          className={inputClassName}
           placeholder="Optional round notes"
         />
       </label>
 
-      <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-gray-500">
+      <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-slate-500">
           {activeSeasonName
             ? `This round will be attached to ${activeSeasonName}.`
             : "No active season is set, so this round will not be season-specific yet."}
@@ -648,7 +649,7 @@ export function ScoreForm({
         <button
           type="submit"
           disabled={isSubmitting || players.length === 0}
-          className="rounded-md bg-green-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-gray-300"
+          className={primaryButtonClassName}
         >
           {isSubmitting ? "Submitting..." : "Submit Round"}
         </button>
@@ -676,25 +677,19 @@ function HoleByHoleSection({
 }) {
   if (!courseSelected) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600">
-        Choose a course to load its hole setup.
-      </div>
+      <EmptyState message="Choose a course to load its hole setup." />
     );
   }
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600">
-        Loading course holes...
-      </div>
+      <EmptyState message="Loading course holes..." />
     );
   }
 
   if (holeEntries.length === 0) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600">
-        This course does not have holes configured yet. Add hole setup on the Courses page.
-      </div>
+      <EmptyState message="This course does not have holes configured yet. Add hole setup on the Courses page." />
     );
   }
 
@@ -715,7 +710,7 @@ function HoleByHoleSection({
         {holeEntries.map((hole, index) => (
           <div
             key={hole.holeNumber}
-            className="grid gap-3 rounded-lg border border-gray-200 p-4 lg:grid-cols-[0.7fr_0.6fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr_0.9fr] lg:items-end"
+            className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50/60 p-4 lg:grid-cols-[0.7fr_0.6fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr_0.9fr] lg:items-end"
           >
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Hole</p>
@@ -742,13 +737,13 @@ function HoleByHoleSection({
               min={0}
             />
             <div>
-              <p className="text-sm font-semibold text-gray-700">FIR</p>
+              <p className="text-sm font-semibold text-slate-700">FIR</p>
               {hole.par === 3 ? (
                 <p className="mt-2 rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-500">
                   N/A
                 </p>
               ) : (
-                <label className="mt-2 flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700">
+                <label className="mt-2 flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
                   <input
                     type="checkbox"
                     checked={hole.fir === true}
@@ -760,8 +755,8 @@ function HoleByHoleSection({
               )}
             </div>
             <label className="space-y-2">
-              <span className="text-sm font-semibold text-gray-700">GIR</span>
-              <span className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700">
+              <span className="text-sm font-semibold text-slate-700">GIR</span>
+              <span className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
                 <input
                   type="checkbox"
                   checked={hole.gir}
@@ -796,11 +791,11 @@ function SummaryEntrySection({
   return (
     <div className="space-y-5">
       <label className="block space-y-2 md:max-w-xs">
-        <span className="text-sm font-semibold text-gray-700">Holes</span>
+        <span className="text-sm font-semibold text-slate-700">Holes</span>
         <select
           value={form.holes}
           onChange={(event) => updateHoles(event.target.value as "9" | "18")}
-          className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+          className={inputClassName}
         >
           <option value="9">9 holes</option>
           <option value="18">18 holes</option>
@@ -841,17 +836,17 @@ function SelectField({
 }) {
   return (
     <label className="space-y-2">
-      <span className="text-sm font-semibold text-gray-700">{label}</span>
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
         disabled={disabled}
-        className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+        className={inputClassName}
       >
         {children}
       </select>
-      {helpText ? <p className="text-xs leading-5 text-gray-500">{helpText}</p> : null}
+      {helpText ? <p className="text-xs leading-5 text-slate-500">{helpText}</p> : null}
     </label>
   );
 }
@@ -871,7 +866,7 @@ function NumberField({
 }) {
   return (
     <label className="space-y-2">
-      <span className="text-sm font-semibold text-gray-700">{label}</span>
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
       <input
         type="number"
         value={value}
@@ -879,7 +874,7 @@ function NumberField({
         min={min}
         required={required}
         inputMode="numeric"
-        className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100"
+        className={inputClassName}
       />
     </label>
   );
@@ -887,11 +882,11 @@ function NumberField({
 
 function TotalCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-green-900/10 bg-green-50/50 p-4">
+    <div className="rounded-lg border border-green-900/10 bg-green-50/70 p-4 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-green-800">
         {label}
       </p>
-      <p className="mt-2 text-2xl font-bold text-gray-950">{value}</p>
+      <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
     </div>
   );
 }

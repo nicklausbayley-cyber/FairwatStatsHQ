@@ -3,6 +3,7 @@ import {
   requireCurrentTeam,
   type CurrentTeamContext
 } from "../../lib/auth/get-current-team";
+import { Badge, EmptyState, PageHeader } from "../../components/ui/primitives";
 import { ScoreForm } from "./score-form";
 
 export const dynamic = "force-dynamic";
@@ -223,10 +224,7 @@ export default async function EnterScorePage() {
     return (
       <section className="space-y-6">
         <EnterScoreHeader />
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
-          <p className="font-semibold">Score entry unavailable</p>
-          <p className="mt-1">{scoreEntry.message}</p>
-        </div>
+        <EmptyState title="Score entry unavailable" message={scoreEntry.message} />
       </section>
     );
   }
@@ -235,9 +233,7 @@ export default async function EnterScorePage() {
     return (
       <section className="space-y-6">
         <EnterScoreHeader />
-        <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          {scoreEntry.message}
-        </div>
+        <EmptyState message={scoreEntry.message} />
       </section>
     );
   }
@@ -250,9 +246,7 @@ export default async function EnterScorePage() {
       />
 
       {scoreEntry.players.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          No active players found for this team yet.
-        </div>
+        <EmptyState message="No active players found for this team yet." />
       ) : (
         <ScoreForm
           teamId={scoreEntry.teamId}
@@ -275,27 +269,21 @@ function EnterScoreHeader({
   activeSeasonName?: string | null;
 }) {
   return (
-    <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
-      <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-        Round Entry
-      </p>
-      <div className="mt-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-950 sm:text-4xl">
-            Enter Score
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-7 text-gray-600">
-            {teamName
-              ? `Submit a new round for ${teamName}.`
-              : "Submit scores and golf stats once Supabase data is available."}
-          </p>
-        </div>
-        {teamName ? (
-          <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+    <PageHeader
+      eyebrow="Round Entry"
+      title="Enter Score"
+      description={
+        teamName
+          ? `Submit a new round for ${teamName} with summary stats or hole-by-hole scoring.`
+          : "Submit scores and golf stats once Supabase data is available."
+      }
+      meta={
+        teamName ? (
+          <Badge tone={activeSeasonName ? "green" : "slate"}>
             {activeSeasonName ? `Active: ${activeSeasonName}` : "All seasons"}
-          </div>
-        ) : null}
-      </div>
-    </div>
+          </Badge>
+        ) : null
+      }
+    />
   );
 }

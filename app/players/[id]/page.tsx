@@ -6,6 +6,17 @@ import {
   type CurrentTeamContext
 } from "../../../lib/auth/get-current-team";
 import { getActiveSeasonForTeam } from "../../../lib/seasons/active-season";
+import {
+  Badge,
+  EmptyState,
+  PageHeader,
+  StatCard,
+  cn,
+  secondaryButtonClassName,
+  tableHeaderClassName,
+  tableRowClassName,
+  tableShellClassName
+} from "../../../components/ui/primitives";
 
 export const dynamic = "force-dynamic";
 
@@ -300,11 +311,8 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   if (profile.status === "error") {
     return (
       <section className="space-y-6">
-        <PlayerProfileHeader />
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
-          <p className="font-semibold">Player profile unavailable</p>
-          <p className="mt-1">{profile.message}</p>
-        </div>
+        <PlayerProfileHeader showRosterLink={isTeamStaff(currentTeam.role)} />
+        <EmptyState title="Player profile unavailable" message={profile.message} />
       </section>
     );
   }
@@ -312,16 +320,15 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   if (profile.status === "not-found") {
     return (
       <section className="space-y-6">
-        <PlayerProfileHeader />
-        <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          <p>{profile.message}</p>
-          <Link
-            href="/roster"
-            className="mt-3 inline-flex rounded-md bg-green-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-900"
-          >
-            Back to Roster
-          </Link>
-        </div>
+        <PlayerProfileHeader showRosterLink={isTeamStaff(currentTeam.role)} />
+        <EmptyState
+          message={profile.message}
+          action={
+            <Link href="/roster" className={secondaryButtonClassName}>
+              Back to Roster
+            </Link>
+          }
+        />
       </section>
     );
   }
@@ -333,14 +340,15 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       <PlayerProfileHeader
         playerName={playerName}
         activeSeasonName={profile.activeSeasonName}
+        showRosterLink={isTeamStaff(currentTeam.role)}
       />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
-        <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5">
           <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
             Player Info
           </p>
-          <h2 className="mt-3 text-2xl font-bold tracking-tight text-gray-950">
+          <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-950">
             {playerName}
           </h2>
           <dl className="mt-5 space-y-4 text-sm">
@@ -364,31 +372,31 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         </div>
       </div>
 
-      <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
+      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 sm:p-8">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
               Round History
             </p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
               Recent Rounds
             </h2>
           </div>
-          <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
-            {profile.rounds.length} rounds
-          </div>
+          <Badge>{profile.rounds.length} rounds</Badge>
         </div>
       </div>
 
       {profile.rounds.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          {profile.activeSeasonName
-            ? `No rounds found for this player in ${profile.activeSeasonName} yet.`
-            : "No rounds found for this player yet."}
-        </div>
+        <EmptyState
+          message={
+            profile.activeSeasonName
+              ? `No rounds found for this player in ${profile.activeSeasonName} yet.`
+              : "No rounds found for this player yet."
+          }
+        />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-green-900/10 bg-white shadow-sm">
-          <div className="hidden grid-cols-[1fr_1.4fr_0.7fr_0.7fr_0.8fr_1fr_0.8fr_0.8fr_0.8fr_1.4fr] gap-4 border-b border-gray-100 bg-green-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-green-900 xl:grid">
+        <div className={tableShellClassName}>
+          <div className={cn(tableHeaderClassName, "xl:grid xl:grid-cols-[1fr_1.4fr_0.7fr_0.7fr_0.8fr_1fr_0.8fr_0.8fr_0.8fr_1.4fr]")}>
             <span>Date</span>
             <span>Event</span>
             <span>Holes</span>
@@ -414,42 +422,37 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
 
 function PlayerProfileHeader({
   playerName,
-  activeSeasonName
+  activeSeasonName,
+  showRosterLink
 }: {
   playerName?: string;
   activeSeasonName?: string | null;
+  showRosterLink: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
-      <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-        Player Profile
-      </p>
-      <div className="mt-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-950 sm:text-4xl">
-            {playerName ?? "Player Profile"}
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-7 text-gray-600">
-            {playerName
-              ? "Scoring history and stat summary loaded from Supabase."
-              : "Player details will appear once Supabase data is available."}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {playerName ? (
-            <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
-              {activeSeasonName ? `Active: ${activeSeasonName}` : "All seasons"}
-            </div>
-          ) : null}
-          <Link
-            href="/roster"
-            className="inline-flex rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800 transition hover:bg-green-100"
-          >
+    <PageHeader
+      eyebrow="Player Profile"
+      title={playerName ?? "Player Profile"}
+      description={
+        playerName
+          ? "Scoring history, stat summary, and recent round detail."
+          : "Player details will appear once Supabase data is available."
+      }
+      meta={
+        playerName ? (
+          <Badge tone={activeSeasonName ? "green" : "slate"}>
+            {activeSeasonName ? `Active: ${activeSeasonName}` : "All seasons"}
+          </Badge>
+        ) : null
+      }
+      action={
+        showRosterLink ? (
+          <Link href="/roster" className={secondaryButtonClassName}>
             Back to Roster
           </Link>
-        </div>
-      </div>
-    </div>
+        ) : null
+      }
+    />
   );
 }
 
@@ -464,30 +467,19 @@ function InfoItem({
 }) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </dt>
-      <dd className={capitalize ? "mt-1 capitalize text-gray-950" : "mt-1 text-gray-950"}>
+      <dd className={capitalize ? "mt-1 capitalize text-slate-950" : "mt-1 text-slate-950"}>
         {value}
       </dd>
     </div>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-green-900/10 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-bold text-gray-950">{value}</p>
-    </div>
-  );
-}
-
 function RoundRowView({ round }: { round: RoundWithEvent }) {
   return (
-    <div className="grid gap-3 px-5 py-4 text-sm xl:grid-cols-[1fr_1.4fr_0.7fr_0.7fr_0.8fr_1fr_0.8fr_0.8fr_0.8fr_1.4fr] xl:items-center">
+    <div className={cn(tableRowClassName, "xl:grid-cols-[1fr_1.4fr_0.7fr_0.7fr_0.8fr_1fr_0.8fr_0.8fr_0.8fr_1.4fr] xl:items-center")}>
       <Cell label="Date" value={formatDate(round.played_on)} strong />
       <Cell label="Event" value={round.eventName ?? "No event"} />
       <Cell label="Holes" value={round.holes.toString()} />
@@ -522,7 +514,7 @@ function Cell({
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
         {label}
       </p>
-      <p className={strong ? "font-semibold text-gray-950" : "text-gray-700"}>
+      <p className={strong ? "font-semibold text-slate-950" : "text-slate-700"}>
         {value}
       </p>
     </div>

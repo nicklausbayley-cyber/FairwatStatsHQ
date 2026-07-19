@@ -3,6 +3,16 @@ import type {
   DashboardRound,
   DashboardSummary
 } from "../../lib/dashboard/dashboard";
+import {
+  Badge,
+  EmptyState,
+  PageHeader,
+  StatCard,
+  cn,
+  tableHeaderClassName,
+  tableRowClassName,
+  tableShellClassName
+} from "../ui/primitives";
 
 type DashboardOverviewProps = {
   dashboardData: DashboardData;
@@ -102,7 +112,7 @@ function buildMetricCards(summary: DashboardSummary): MetricCard[] {
 
 function RecentRoundRow({ round }: { round: DashboardRound }) {
   return (
-    <div className="grid gap-3 px-5 py-4 text-sm lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr] lg:items-center">
+    <div className={cn(tableRowClassName, "lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr] lg:items-center")}>
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Player
@@ -125,7 +135,7 @@ function RecentRoundRow({ round }: { round: DashboardRound }) {
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Score
         </p>
-        <p className="font-semibold text-gray-950">{round.score}</p>
+        <p className="font-bold text-slate-950">{round.score}</p>
       </div>
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
@@ -170,10 +180,7 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
     return (
       <section className="space-y-6">
         <DashboardHeader />
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
-          <p className="font-semibold">Dashboard unavailable</p>
-          <p className="mt-1">{dashboardData.message}</p>
-        </div>
+        <EmptyState title="Dashboard unavailable" message={dashboardData.message} />
       </section>
     );
   }
@@ -182,9 +189,7 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
     return (
       <section className="space-y-6">
         <DashboardHeader />
-        <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          {dashboardData.message}
-        </div>
+        <EmptyState message={dashboardData.message} />
       </section>
     );
   }
@@ -200,22 +205,16 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metricCards.map((metric) => (
-          <div
+          <StatCard
             key={metric.label}
-            className="rounded-lg border border-green-900/10 bg-white p-5 shadow-sm"
-          >
-            <p className="text-sm font-semibold text-gray-600">
-              {metric.label}
-            </p>
-            <p className="mt-3 text-3xl font-bold tracking-tight text-gray-950">
-              {metric.value}
-            </p>
-            <p className="mt-2 text-sm text-gray-500">{metric.helper}</p>
-          </div>
+            label={metric.label}
+            value={metric.value}
+            helper={metric.helper}
+          />
         ))}
       </div>
 
-      <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
+      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 sm:p-8">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
@@ -225,21 +224,21 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
               Recent Rounds
             </h2>
           </div>
-          <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
-            {dashboardData.recentRounds.length} shown
-          </div>
+          <Badge>{dashboardData.recentRounds.length} shown</Badge>
         </div>
       </div>
 
       {dashboardData.recentRounds.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600 shadow-sm">
-          {dashboardData.activeSeasonName
-            ? `No rounds found for ${dashboardData.activeSeasonName} yet.`
-            : "No rounds found for this team yet."}
-        </div>
+        <EmptyState
+          message={
+            dashboardData.activeSeasonName
+              ? `No rounds found for ${dashboardData.activeSeasonName} yet.`
+              : "No rounds found for this team yet."
+          }
+        />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-green-900/10 bg-white shadow-sm">
-          <div className="hidden grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr] gap-4 border-b border-gray-100 bg-green-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-green-900 lg:grid">
+        <div className={tableShellClassName}>
+          <div className={cn(tableHeaderClassName, "lg:grid lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr]")}>
             <span>Player</span>
             <span>Event</span>
             <span>Played</span>
@@ -270,27 +269,21 @@ function DashboardHeader({
   activeSeasonName?: string | null;
 }) {
   return (
-    <div className="rounded-lg border border-green-900/10 bg-white p-6 shadow-sm sm:p-8">
-      <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-        Team Overview
-      </p>
-      <div className="mt-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-950 sm:text-4xl">
-            Dashboard
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-7 text-gray-600">
-            {teamName
-              ? `${teamName} scoring summary loaded from Supabase.`
-              : "Team scoring summaries will appear once Supabase data is available."}
-          </p>
-        </div>
-        {teamName ? (
-          <div className="rounded-md bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+    <PageHeader
+      eyebrow="Team Overview"
+      title="Dashboard"
+      description={
+        teamName
+          ? `${teamName} scoring summary, roster totals, and recent scorecards.`
+          : "Team scoring summaries will appear once Supabase data is available."
+      }
+      meta={
+        teamName ? (
+          <Badge tone={activeSeasonName ? "green" : "slate"}>
             {activeSeasonName ? `Active: ${activeSeasonName}` : "All seasons"}
-          </div>
-        ) : null}
-      </div>
-    </div>
+          </Badge>
+        ) : null
+      }
+    />
   );
 }
