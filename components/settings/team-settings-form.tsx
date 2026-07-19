@@ -1,13 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type FormEvent
-} from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
 type TeamSettings = {
   name: string;
@@ -78,6 +72,7 @@ function getInitials(name: string) {
 export function TeamSettingsForm({ team }: { team: TeamSettings }) {
   const router = useRouter();
   const logoInputRef = useRef<HTMLInputElement | null>(null);
+  const generatedLogoPreviewUrlRef = useRef<string | null>(null);
   const [form, setForm] = useState<FormState>(() => createInitialState(team));
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState(form.logoUrl);
@@ -85,16 +80,21 @@ export function TeamSettingsForm({ team }: { team: TeamSettings }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!logoFile) {
-      setLogoPreviewUrl(form.logoUrl);
-      return;
+    return () => {
+      if (generatedLogoPreviewUrlRef.current) {
+        URL.revokeObjectURL(generatedLogoPreviewUrlRef.current);
+      }
+    };
+  }, []);
+
+  function replaceGeneratedLogoPreview(previewUrl: string | null) {
+    if (generatedLogoPreviewUrlRef.current) {
+      URL.revokeObjectURL(generatedLogoPreviewUrlRef.current);
     }
 
-    const previewUrl = URL.createObjectURL(logoFile);
-    setLogoPreviewUrl(previewUrl);
-
-    return () => URL.revokeObjectURL(previewUrl);
-  }, [form.logoUrl, logoFile]);
+    generatedLogoPreviewUrlRef.current = previewUrl;
+    setLogoPreviewUrl(previewUrl ?? form.logoUrl);
+  }
 
   function updateField<Field extends keyof FormState>(
     field: Field,
@@ -108,11 +108,13 @@ export function TeamSettingsForm({ team }: { team: TeamSettings }) {
 
     if (!file) {
       setLogoFile(null);
+      replaceGeneratedLogoPreview(null);
       return;
     }
 
     if (!allowedLogoMimeTypes.includes(file.type)) {
       setLogoFile(null);
+      replaceGeneratedLogoPreview(null);
       event.target.value = "";
       setMessage({
         type: "error",
@@ -123,6 +125,7 @@ export function TeamSettingsForm({ team }: { team: TeamSettings }) {
 
     setMessage(null);
     setLogoFile(file);
+    replaceGeneratedLogoPreview(URL.createObjectURL(file));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -167,7 +170,10 @@ export function TeamSettingsForm({ team }: { team: TeamSettings }) {
       }
 
       if (result.logoUrl !== undefined) {
-        setForm((current) => ({ ...current, logoUrl: result.logoUrl ?? "" }));
+        const nextLogoUrl = result.logoUrl ?? "";
+        setForm((current) => ({ ...current, logoUrl: nextLogoUrl }));
+        replaceGeneratedLogoPreview(null);
+        setLogoPreviewUrl(nextLogoUrl);
       }
 
       setLogoFile(null);

@@ -1,12 +1,15 @@
 import {
+  requireCurrentTeam,
+  type CurrentTeamContext
+} from "../../lib/auth/get-current-team";
+import {
   getActiveSeasonForTeam,
   type ActiveSeason
 } from "../../lib/seasons/active-season";
-import { createServiceRoleClient } from "../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-type SupabaseServiceClient = ReturnType<typeof createServiceRoleClient>;
+type SupabaseServiceClient = CurrentTeamContext["supabase"];
 
 type SearchParams = {
   courseId?: string | string[];
@@ -590,30 +593,12 @@ async function getHoleBreakdown(
   }
 }
 
-async function getStatistics(filters: StatisticsFilters): Promise<StatisticsState> {
+async function getStatistics(
+  filters: StatisticsFilters,
+  currentTeam: CurrentTeamContext
+): Promise<StatisticsState> {
   try {
-    const supabase = createServiceRoleClient();
-
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .select("id, name")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (teamError) {
-      return {
-        status: "error",
-        message: teamError.message
-      };
-    }
-
-    if (!team) {
-      return {
-        status: "empty",
-        message: "No team found. Run the demo seed file to add statistics data."
-      };
-    }
+    const { supabase, team } = currentTeam;
 
     const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
     const roundsQuery = supabase
@@ -675,10 +660,11 @@ async function getStatistics(filters: StatisticsFilters): Promise<StatisticsStat
 
 export default async function StatisticsPage({ searchParams }: StatisticsPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
+  const currentTeam = await requireCurrentTeam();
   const statistics = await getStatistics({
     courseId: getSearchValue(resolvedSearchParams.courseId),
     eventId: getSearchValue(resolvedSearchParams.eventId)
-  });
+  }, currentTeam);
 
   if (statistics.status === "error") {
     return (

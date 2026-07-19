@@ -45,6 +45,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      profiles: {
+        Row: {
+          id: string;
+          team_id: string;
+          role: "admin" | "coach" | "player";
+          full_name: string;
+          email: string;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          team_id: string;
+          role?: "admin" | "coach" | "player";
+          full_name: string;
+          email: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          team_id?: string;
+          role?: "admin" | "coach" | "player";
+          full_name?: string;
+          email?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       seasons: {
         Row: {
           id: string;
@@ -333,10 +360,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      coach_notes: {
+        Row: {
+          id: string;
+          team_id: string;
+          player_id: string;
+          author_id: string;
+          note: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          player_id: string;
+          author_id: string;
+          note: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          team_id?: string;
+          player_id?: string;
+          author_id?: string;
+          note?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
-    Enums: Record<string, never>;
+    Enums: {
+      user_role: "admin" | "coach" | "player";
+      event_type:
+        | "practice"
+        | "match"
+        | "invitational"
+        | "qualifier"
+        | "tournament";
+    };
     CompositeTypes: Record<string, never>;
   };
 };

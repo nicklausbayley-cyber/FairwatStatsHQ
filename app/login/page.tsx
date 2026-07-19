@@ -1,12 +1,13 @@
-import { PlaceholderPage } from "../../components/layout/placeholder-page";
+import { redirect } from "next/navigation";
+import { getCurrentTeam } from "../../lib/auth/get-current-team";
+import { LoginForm } from "./login-form";
 
-export default function LoginPage() {
-  return (
-    <PlaceholderPage
-      eyebrow="Account Access"
-      title="Login"
-      description="This placeholder will become the sign-in screen for coaches, admins, and players."
-      actions={[{ href: "/dashboard", label: "Continue to Dashboard" }]}
-    />
-  );
+export default async function LoginPage() {
+  const currentTeam = await getCurrentTeam();
+
+  if (currentTeam.data) {
+    redirect("/dashboard");
+  }
+
+  return <LoginForm />;
 }

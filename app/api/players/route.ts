@@ -1,6 +1,10 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
-import { createServiceRoleClient } from "../../../lib/supabase/server";
+import {
+  authStatusCode,
+  getCurrentTeam,
+  isTeamStaff
+} from "../../../lib/auth/get-current-team";
 
 export const dynamic = "force-dynamic";
 
@@ -109,25 +113,24 @@ export async function POST(request: Request) {
     return jsonResult(validation.error);
   }
 
+  const player = validation.player;
+
+  if (!player) {
+    return jsonResult("Invalid player details.");
+  }
+
   try {
-    const supabase = createServiceRoleClient();
+    const currentTeam = await getCurrentTeam();
 
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .select("id")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (teamError) {
-      return jsonResult(`Could not load team: ${teamError.message}`, 500);
+    if (!currentTeam.data) {
+      return jsonResult(currentTeam.error, authStatusCode(currentTeam.status));
     }
 
-    if (!team) {
-      return jsonResult("No team found. Run the demo seed file before adding players.", 404);
+    if (!isTeamStaff(currentTeam.data.role)) {
+      return jsonResult("Only coaches and admins can manage the roster.", 403);
     }
 
-    const { player } = validation;
+    const { supabase, team } = currentTeam.data;
     const { error } = await supabase.from("players").insert({
       team_id: team.id,
       first_name: player.firstName,
@@ -172,22 +175,17 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const supabase = createServiceRoleClient();
+    const currentTeam = await getCurrentTeam();
 
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .select("id")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (teamError) {
-      return jsonResult(`Could not load team: ${teamError.message}`, 500);
+    if (!currentTeam.data) {
+      return jsonResult(currentTeam.error, authStatusCode(currentTeam.status));
     }
 
-    if (!team) {
-      return jsonResult("No team found. Run the demo seed file before editing players.", 404);
+    if (!isTeamStaff(currentTeam.data.role)) {
+      return jsonResult("Only coaches and admins can manage the roster.", 403);
     }
+
+    const { supabase, team } = currentTeam.data;
 
     if (input.action === "deactivate") {
       const { data: player, error } = await supabase
@@ -220,7 +218,12 @@ export async function PATCH(request: Request) {
       return jsonResult(validation.error);
     }
 
-    const { player: playerDetails } = validation;
+    const playerDetails = validation.player;
+
+    if (!playerDetails) {
+      return jsonResult("Invalid player details.");
+    }
+
     const { data: player, error } = await supabase
       .from("players")
       .update({

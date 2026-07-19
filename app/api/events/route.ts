@@ -1,6 +1,10 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
-import { createServiceRoleClient } from "../../../lib/supabase/server";
+import {
+  authStatusCode,
+  getCurrentTeam,
+  isTeamStaff
+} from "../../../lib/auth/get-current-team";
 
 export const dynamic = "force-dynamic";
 
@@ -117,24 +121,24 @@ export async function POST(request: Request) {
     return jsonResult(validation.error);
   }
 
+  const event = validation.event;
+
+  if (!event) {
+    return jsonResult("Invalid event details.");
+  }
+
   try {
-    const supabase = createServiceRoleClient();
+    const currentTeam = await getCurrentTeam();
 
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .select("id")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (teamError) {
-      return jsonResult(`Could not load team: ${teamError.message}`, 500);
+    if (!currentTeam.data) {
+      return jsonResult(currentTeam.error, authStatusCode(currentTeam.status));
     }
 
-    if (!team) {
-      return jsonResult("No team found. Run the demo seed file before adding events.", 404);
+    if (!isTeamStaff(currentTeam.data.role)) {
+      return jsonResult("Only coaches and admins can manage events.", 403);
     }
 
+    const { supabase, team } = currentTeam.data;
     const { data: activeSeason, error: seasonError } = await supabase
       .from("seasons")
       .select("id")
@@ -148,7 +152,6 @@ export async function POST(request: Request) {
       return jsonResult(`Could not find active season: ${seasonError.message}`, 500);
     }
 
-    const { event } = validation;
     const { error } = await supabase.from("events").insert({
       team_id: team.id,
       season_id: activeSeason?.id ?? null,
@@ -200,25 +203,24 @@ export async function PATCH(request: Request) {
     return jsonResult(validation.error);
   }
 
+  const event = validation.event;
+
+  if (!event) {
+    return jsonResult("Invalid event details.");
+  }
+
   try {
-    const supabase = createServiceRoleClient();
+    const currentTeam = await getCurrentTeam();
 
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .select("id")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (teamError) {
-      return jsonResult(`Could not load team: ${teamError.message}`, 500);
+    if (!currentTeam.data) {
+      return jsonResult(currentTeam.error, authStatusCode(currentTeam.status));
     }
 
-    if (!team) {
-      return jsonResult("No team found. Run the demo seed file before editing events.", 404);
+    if (!isTeamStaff(currentTeam.data.role)) {
+      return jsonResult("Only coaches and admins can manage events.", 403);
     }
 
-    const { event } = validation;
+    const { supabase, team } = currentTeam.data;
     const { data: updatedEvent, error } = await supabase
       .from("events")
       .update({
@@ -273,22 +275,17 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    const supabase = createServiceRoleClient();
+    const currentTeam = await getCurrentTeam();
 
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .select("id")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (teamError) {
-      return jsonResult(`Could not load team: ${teamError.message}`, 500);
+    if (!currentTeam.data) {
+      return jsonResult(currentTeam.error, authStatusCode(currentTeam.status));
     }
 
-    if (!team) {
-      return jsonResult("No team found. Run the demo seed file before deleting events.", 404);
+    if (!isTeamStaff(currentTeam.data.role)) {
+      return jsonResult("Only coaches and admins can manage events.", 403);
     }
+
+    const { supabase, team } = currentTeam.data;
 
     const { count: roundCount, error: roundsError } = await supabase
       .from("rounds")

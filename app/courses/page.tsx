@@ -3,7 +3,10 @@ import {
   type CourseHole,
   type CourseSummary
 } from "../../components/courses/course-manager";
-import { createServiceRoleClient } from "../../lib/supabase/server";
+import {
+  requireCurrentTeam,
+  type CurrentTeamContext
+} from "../../lib/auth/get-current-team";
 
 export const dynamic = "force-dynamic";
 
@@ -35,27 +38,11 @@ type CoursesState =
       message: string;
     };
 
-async function getCoursesData(): Promise<CoursesState> {
+async function getCoursesData(
+  currentTeam: CurrentTeamContext
+): Promise<CoursesState> {
   try {
-    const supabase = createServiceRoleClient();
-
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .select("id")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (teamError) {
-      return { status: "error", message: teamError.message };
-    }
-
-    if (!team) {
-      return {
-        status: "empty",
-        message: "No team found. Run the demo seed file before adding courses."
-      };
-    }
+    const { supabase, team } = currentTeam;
 
     const { data: coursesData, error: coursesError } = await supabase
       .from("courses")
@@ -119,7 +106,8 @@ async function getCoursesData(): Promise<CoursesState> {
 }
 
 export default async function CoursesPage() {
-  const coursesData = await getCoursesData();
+  const currentTeam = await requireCurrentTeam();
+  const coursesData = await getCoursesData(currentTeam);
 
   if (coursesData.status === "error") {
     return (

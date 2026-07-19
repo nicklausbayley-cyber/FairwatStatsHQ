@@ -1,4 +1,4 @@
-import { createServiceRoleClient } from "../supabase/server";
+import { getCurrentTeam } from "../auth/get-current-team";
 
 export type TeamBranding = {
   name: string;
@@ -14,18 +14,13 @@ const fallbackSecondaryColor = "#111827";
 
 export async function getTeamBranding(): Promise<TeamBranding | null> {
   try {
-    const supabase = createServiceRoleClient();
+    const currentTeam = await getCurrentTeam();
 
-    const { data: team, error } = await supabase
-      .from("teams")
-      .select("name, school_name, mascot, primary_color, secondary_color, logo_url")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (error || !team) {
+    if (!currentTeam.data) {
       return null;
     }
+
+    const { team } = currentTeam.data;
 
     return {
       name: team.name,

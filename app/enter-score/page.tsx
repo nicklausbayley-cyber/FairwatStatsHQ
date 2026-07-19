@@ -1,5 +1,8 @@
 import { getActiveSeasonForTeam } from "../../lib/seasons/active-season";
-import { createServiceRoleClient } from "../../lib/supabase/server";
+import {
+  requireCurrentTeam,
+  type CurrentTeamContext
+} from "../../lib/auth/get-current-team";
 import { ScoreForm } from "./score-form";
 
 export const dynamic = "force-dynamic";
@@ -42,30 +45,11 @@ type EnterScoreState =
       message: string;
     };
 
-async function getEnterScoreData(): Promise<EnterScoreState> {
+async function getEnterScoreData(
+  currentTeam: CurrentTeamContext
+): Promise<EnterScoreState> {
   try {
-    const supabase = createServiceRoleClient();
-
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .select("id, name")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (teamError) {
-      return {
-        status: "error",
-        message: teamError.message
-      };
-    }
-
-    if (!team) {
-      return {
-        status: "empty",
-        message: "No team found. Run the demo seed file before entering scores."
-      };
-    }
+    const { supabase, team } = currentTeam;
 
     const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
     const eventsQuery = supabase
@@ -149,7 +133,8 @@ async function getEnterScoreData(): Promise<EnterScoreState> {
 }
 
 export default async function EnterScorePage() {
-  const scoreEntry = await getEnterScoreData();
+  const currentTeam = await requireCurrentTeam();
+  const scoreEntry = await getEnterScoreData(currentTeam);
 
   if (scoreEntry.status === "error") {
     return (

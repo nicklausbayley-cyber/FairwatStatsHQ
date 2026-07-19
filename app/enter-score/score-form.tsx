@@ -250,30 +250,27 @@ export function ScoreForm({
 
   useEffect(() => {
     if (entryMode !== "hole-by-hole" || !form.courseId) {
-      setCourseHoles([]);
-      setHoleEntries([]);
       return;
     }
 
     let isCurrent = true;
-    setIsLoadingHoles(true);
 
-    fetch(`/api/courses/${form.courseId}/holes`)
-      .then(async (response) => {
+    async function loadCourseHoles() {
+      setIsLoadingHoles(true);
+
+      try {
+        const response = await fetch(`/api/courses/${form.courseId}/holes`);
         const result = (await response.json()) as CourseHolesResult;
 
         if (!response.ok || !result.success) {
           throw new Error(result.message || "Could not load course holes.");
         }
 
-        return result.holes ?? [];
-      })
-      .then((holes) => {
         if (!isCurrent) {
           return;
         }
 
-        const nextCourseHoles = holes.map((hole) => ({
+        const nextCourseHoles = (result.holes ?? []).map((hole) => ({
           holeNumber: hole.hole_number,
           par: hole.par,
           handicap: hole.handicap,
@@ -282,8 +279,7 @@ export function ScoreForm({
 
         setCourseHoles(nextCourseHoles);
         setHoleEntries(createHoleEntries(nextCourseHoles));
-      })
-      .catch((error) => {
+      } catch (error) {
         if (!isCurrent) {
           return;
         }
@@ -297,12 +293,14 @@ export function ScoreForm({
               ? error.message
               : "Could not load course holes."
         });
-      })
-      .finally(() => {
+      } finally {
         if (isCurrent) {
           setIsLoadingHoles(false);
         }
-      });
+      }
+    }
+
+    void loadCourseHoles();
 
     return () => {
       isCurrent = false;
@@ -546,7 +544,11 @@ export function ScoreForm({
         <SelectField
           label="Course"
           value={form.courseId}
-          onChange={(value) => updateField("courseId", value)}
+          onChange={(value) => {
+            updateField("courseId", value);
+            setCourseHoles([]);
+            setHoleEntries([]);
+          }}
         >
           <option value="">No course selected</option>
           {courses.map((course) => (

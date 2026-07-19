@@ -1,5 +1,5 @@
 import { getActiveSeasonForTeam } from "../seasons/active-season";
-import { createServiceRoleClient } from "../supabase/server";
+import type { CurrentTeamContext } from "../auth/get-current-team";
 
 export type EventListRow = {
   id: string;
@@ -26,30 +26,11 @@ export type EventsData =
       message: string;
     };
 
-export async function getTeamEvents(): Promise<EventsData> {
+export async function getTeamEvents(
+  currentTeam: CurrentTeamContext
+): Promise<EventsData> {
   try {
-    const supabase = createServiceRoleClient();
-
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .select("id, name")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (teamError) {
-      return {
-        status: "error",
-        message: teamError.message
-      };
-    }
-
-    if (!team) {
-      return {
-        status: "empty",
-        message: "No team found. Run the demo seed file to add events."
-      };
-    }
+    const { supabase, team } = currentTeam;
 
     const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
     const eventsQuery = supabase

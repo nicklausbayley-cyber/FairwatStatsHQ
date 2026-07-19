@@ -3,7 +3,10 @@ import {
   type SeasonSettings
 } from "../../components/settings/season-management";
 import { TeamSettingsForm } from "../../components/settings/team-settings-form";
-import { createServiceRoleClient } from "../../lib/supabase/server";
+import {
+  requireCurrentTeam,
+  type CurrentTeamContext
+} from "../../lib/auth/get-current-team";
 
 export const dynamic = "force-dynamic";
 
@@ -41,32 +44,11 @@ type SettingsState =
       message: string;
     };
 
-async function getSettingsData(): Promise<SettingsState> {
+async function getSettingsData(
+  currentTeam: CurrentTeamContext
+): Promise<SettingsState> {
   try {
-    const supabase = createServiceRoleClient();
-
-    const { data: team, error } = await supabase
-      .from("teams")
-      .select(
-        "id, name, school_name, mascot, primary_color, secondary_color, logo_url, contact_email"
-      )
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      return {
-        status: "error",
-        message: error.message
-      };
-    }
-
-    if (!team) {
-      return {
-        status: "empty",
-        message: "No team found. Run the demo seed file before updating settings."
-      };
-    }
+    const { supabase, team } = currentTeam;
 
     const { data: seasons, error: seasonsError } = await supabase
       .from("seasons")
@@ -109,7 +91,8 @@ function toSeasonSettings(seasons: SeasonSettingsRow[]): SeasonSettings[] {
 }
 
 export default async function SettingsPage() {
-  const settings = await getSettingsData();
+  const currentTeam = await requireCurrentTeam();
+  const settings = await getSettingsData(currentTeam);
 
   if (settings.status === "error") {
     return (

@@ -1,5 +1,5 @@
 import { getActiveSeasonForTeam } from "../seasons/active-season";
-import { createServiceRoleClient } from "../supabase/server";
+import type { CurrentTeamContext } from "../auth/get-current-team";
 
 type PlayerLookupRow = {
   id: string;
@@ -117,30 +117,11 @@ function percentageFromTotals(
   return totals.hit / totals.possible;
 }
 
-export async function getDashboardData(): Promise<DashboardData> {
+export async function getDashboardData(
+  currentTeam: CurrentTeamContext
+): Promise<DashboardData> {
   try {
-    const supabase = createServiceRoleClient();
-
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .select("id, name")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (teamError) {
-      return {
-        status: "error",
-        message: teamError.message
-      };
-    }
-
-    if (!team) {
-      return {
-        status: "empty",
-        message: "No team found. Run the demo seed file to add dashboard data."
-      };
-    }
+    const { supabase, team } = currentTeam;
 
     const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
 

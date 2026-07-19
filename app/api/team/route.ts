@@ -1,7 +1,12 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
-import { createServiceRoleClient } from "../../../lib/supabase/server";
+import {
+  authStatusCode,
+  getCurrentTeam,
+  isTeamStaff
+} from "../../../lib/auth/get-current-team";
+import { createAdminClient } from "../../../lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -193,7 +198,7 @@ function validateTeamSettings(input: TeamSettingsInput): TeamSettingsValidationR
 }
 
 async function ensureLogoBucket(
-  supabase: ReturnType<typeof createServiceRoleClient>
+  supabase: ReturnType<typeof createAdminClient>
 ) {
   const { data: bucket, error: getBucketError } = await supabase.storage.getBucket(
     logoBucketName
@@ -240,7 +245,7 @@ async function uploadLogoFile({
   teamId,
   logoFile
 }: {
-  supabase: ReturnType<typeof createServiceRoleClient>;
+  supabase: ReturnType<typeof createAdminClient>;
   teamId: string;
   logoFile: File;
 }) {
@@ -302,6 +307,12 @@ export async function PATCH(request: Request) {
     return jsonResult(validation.error);
   }
 
+  const teamSettings = validation.team;
+
+  if (!teamSettings) {
+    return jsonResult("Invalid team settings.");
+  }
+
   if (settingsRequest.logoFile) {
     const logoValidationError = validateLogoFile(settingsRequest.logoFile);
 
@@ -311,29 +322,23 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const supabase = createServiceRoleClient();
+    const currentTeam = await getCurrentTeam();
 
-    const { data: team, error: teamError } = await supabase
-      .from("teams")
-      .select("id")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (teamError) {
-      return jsonResult(`Could not load team: ${teamError.message}`, 500);
+    if (!currentTeam.data) {
+      return jsonResult(currentTeam.error, authStatusCode(currentTeam.status));
     }
 
-    if (!team) {
-      return jsonResult("No team found. Run the demo seed file before updating settings.", 404);
+    if (!isTeamStaff(currentTeam.data.role)) {
+      return jsonResult("Only coaches and admins can update team settings.", 403);
     }
 
-    const { team: teamSettings } = validation;
+    const { supabase, team } = currentTeam.data;
     let logoUrl = teamSettings.logoUrl;
 
     if (settingsRequest.logoFile) {
+      const adminSupabase = createAdminClient();
       const logoUpload = await uploadLogoFile({
-        supabase,
+        supabase: adminSupabase,
         teamId: team.id,
         logoFile: settingsRequest.logoFile
       });

@@ -1,6 +1,9 @@
 import Link from "next/link";
+import {
+  requireCurrentTeam,
+  type CurrentTeamContext
+} from "../../../lib/auth/get-current-team";
 import { getActiveSeasonForTeam } from "../../../lib/seasons/active-season";
-import { createServiceRoleClient } from "../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -177,14 +180,18 @@ function formatDate(date: string) {
   });
 }
 
-async function getPlayerProfile(playerId: string): Promise<PlayerProfileState> {
+async function getPlayerProfile(
+  playerId: string,
+  currentTeam: CurrentTeamContext
+): Promise<PlayerProfileState> {
   try {
-    const supabase = createServiceRoleClient();
+    const { supabase, team } = currentTeam;
 
     const { data: player, error: playerError } = await supabase
       .from("players")
       .select("id, team_id, first_name, last_name, graduation_year, status")
       .eq("id", playerId)
+      .eq("team_id", team.id)
       .maybeSingle();
 
     if (playerError) {
@@ -201,13 +208,13 @@ async function getPlayerProfile(playerId: string): Promise<PlayerProfileState> {
       };
     }
 
-    const activeSeason = await getActiveSeasonForTeam(supabase, player.team_id);
+    const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
     const roundsQuery = supabase
       .from("rounds")
       .select(
         "id, event_id, played_on, holes, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts, notes"
       )
-      .eq("team_id", player.team_id)
+      .eq("team_id", team.id)
       .eq("player_id", player.id);
 
     const { data: roundsData, error: roundsError } = await (activeSeason
@@ -230,7 +237,7 @@ async function getPlayerProfile(playerId: string): Promise<PlayerProfileState> {
       const { data: eventsData, error: eventsError } = await supabase
         .from("events")
         .select("id, name")
-        .eq("team_id", player.team_id)
+        .eq("team_id", team.id)
         .in("id", eventIds);
 
       if (eventsError) {
@@ -269,7 +276,8 @@ async function getPlayerProfile(playerId: string): Promise<PlayerProfileState> {
 
 export default async function PlayerPage({ params }: PlayerPageProps) {
   const { id } = await params;
-  const profile = await getPlayerProfile(id);
+  const currentTeam = await requireCurrentTeam();
+  const profile = await getPlayerProfile(id, currentTeam);
 
   if (profile.status === "error") {
     return (

@@ -1,6 +1,10 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
-import { createServiceRoleClient } from "../../../lib/supabase/server";
+import {
+  authStatusCode,
+  getCurrentTeam,
+  isTeamStaff
+} from "../../../lib/auth/get-current-team";
 
 export const dynamic = "force-dynamic";
 
@@ -40,18 +44,6 @@ function revalidateSeasonViews() {
   revalidatePath("/players/[id]", "page");
 }
 
-async function getFirstTeam() {
-  const supabase = createServiceRoleClient();
-  const { data: team, error } = await supabase
-    .from("teams")
-    .select("id")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  return { supabase, team, error };
-}
-
 export async function POST(request: Request) {
   let input: CreateSeasonInput;
 
@@ -82,15 +74,17 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { supabase, team, error: teamError } = await getFirstTeam();
+    const currentTeam = await getCurrentTeam();
 
-    if (teamError) {
-      return jsonResult(`Could not load team: ${teamError.message}`, 500);
+    if (!currentTeam.data) {
+      return jsonResult(currentTeam.error, authStatusCode(currentTeam.status));
     }
 
-    if (!team) {
-      return jsonResult("No team found. Run the demo seed file before adding seasons.", 404);
+    if (!isTeamStaff(currentTeam.data.role)) {
+      return jsonResult("Only coaches and admins can manage seasons.", 403);
     }
+
+    const { supabase, team } = currentTeam.data;
 
     const { data: activeSeason, error: activeSeasonError } = await supabase
       .from("seasons")
@@ -161,15 +155,17 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const { supabase, team, error: teamError } = await getFirstTeam();
+    const currentTeam = await getCurrentTeam();
 
-    if (teamError) {
-      return jsonResult(`Could not load team: ${teamError.message}`, 500);
+    if (!currentTeam.data) {
+      return jsonResult(currentTeam.error, authStatusCode(currentTeam.status));
     }
 
-    if (!team) {
-      return jsonResult("No team found. Run the demo seed file before updating seasons.", 404);
+    if (!isTeamStaff(currentTeam.data.role)) {
+      return jsonResult("Only coaches and admins can manage seasons.", 403);
     }
+
+    const { supabase, team } = currentTeam.data;
 
     const { data: selectedSeason, error: selectedSeasonError } = await supabase
       .from("seasons")

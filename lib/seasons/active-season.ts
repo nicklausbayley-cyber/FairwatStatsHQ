@@ -1,6 +1,6 @@
-import type { createServiceRoleClient } from "../supabase/server";
+import type { createClient } from "../supabase/server";
 
-type SupabaseServiceClient = ReturnType<typeof createServiceRoleClient>;
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 export type ActiveSeason = {
   id: string;
@@ -10,7 +10,7 @@ export type ActiveSeason = {
 };
 
 export async function getActiveSeasonForTeam(
-  supabase: SupabaseServiceClient,
+  supabase: SupabaseServerClient,
   teamId: string
 ): Promise<ActiveSeason | null> {
   const { data: activeSeason, error } = await supabase

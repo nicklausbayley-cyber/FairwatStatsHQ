@@ -1,6 +1,10 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
-import { createServiceRoleClient } from "../../../lib/supabase/server";
+import {
+  authStatusCode,
+  getCurrentTeam,
+  isTeamStaff
+} from "../../../lib/auth/get-current-team";
 
 export const dynamic = "force-dynamic";
 
@@ -203,10 +207,6 @@ export async function POST(request: Request) {
     return jsonResult("Could not read score submission.");
   }
 
-  if (isMissingText(input.teamId)) {
-    return jsonResult("Missing team context.");
-  }
-
   if (isMissingText(input.playerId)) {
     return jsonResult("Please choose a player.");
   }
@@ -237,12 +237,54 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = createServiceRoleClient();
+    const currentTeam = await getCurrentTeam();
+
+    if (!currentTeam.data) {
+      return jsonResult(currentTeam.error, authStatusCode(currentTeam.status));
+    }
+
+    const { supabase, team, profile, role } = currentTeam.data;
+
+    const { data: player, error: playerError } = await supabase
+      .from("players")
+      .select("id, profile_id")
+      .eq("id", input.playerId)
+      .eq("team_id", team.id)
+      .maybeSingle();
+
+    if (playerError) {
+      return jsonResult(`Could not verify player: ${playerError.message}`, 500);
+    }
+
+    if (!player) {
+      return jsonResult("Player not found for this team.", 404);
+    }
+
+    if (!isTeamStaff(role) && player.profile_id !== profile.id) {
+      return jsonResult("Players can only submit their own rounds.", 403);
+    }
+
+    if (input.eventId) {
+      const { data: event, error: eventError } = await supabase
+        .from("events")
+        .select("id")
+        .eq("id", input.eventId)
+        .eq("team_id", team.id)
+        .maybeSingle();
+
+      if (eventError) {
+        return jsonResult(`Could not verify event: ${eventError.message}`, 500);
+      }
+
+      if (!event) {
+        return jsonResult("Event not found for this team.", 404);
+      }
+    }
 
     const { data: activeSeason, error: seasonError } = await supabase
       .from("seasons")
       .select("id")
-      .eq("team_id", input.teamId)
+      .eq("team_id", team.id)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -257,7 +299,7 @@ export async function POST(request: Request) {
         .from("courses")
         .select("id")
         .eq("id", input.courseId)
-        .eq("team_id", input.teamId)
+        .eq("team_id", team.id)
         .maybeSingle();
 
       if (courseError) {
@@ -273,10 +315,11 @@ export async function POST(request: Request) {
     const { data: round, error } = await supabase
       .from("rounds")
       .insert({
-        team_id: input.teamId,
+        team_id: team.id,
         season_id: activeSeason?.id ?? null,
         event_id: input.eventId || null,
         player_id: input.playerId,
+        submitted_by: profile.id,
         played_on: input.playedOn,
         holes: totals?.holes ?? input.holes,
         score: totals?.score ?? input.score,
@@ -305,7 +348,7 @@ export async function POST(request: Request) {
     if (holeEntryMode) {
       const { error: roundHolesError } = await supabase.from("round_holes").insert(
         holeEntries.map((hole) => ({
-          team_id: input.teamId,
+          team_id: team.id,
           round_id: round.id,
           player_id: input.playerId,
           event_id: input.eventId || null,

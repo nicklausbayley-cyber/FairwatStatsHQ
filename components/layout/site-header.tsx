@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import type { TeamBranding } from "../../lib/team/branding";
+import { createClient } from "../../lib/supabase/client";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -32,14 +34,28 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function SiteHeader({ branding }: { branding: TeamBranding | null }) {
+export function SiteHeader({
+  branding,
+  isAuthenticated
+}: {
+  branding: TeamBranding | null;
+  isAuthenticated: boolean;
+}) {
   const pathname = usePathname();
+  const router = useRouter();
   const primaryColor = branding?.primaryColor ?? fallbackPrimaryColor;
   const secondaryColor = branding?.secondaryColor ?? fallbackSecondaryColor;
   const displayName = branding?.name ?? "Fairway Stats HQ";
   const subtitle = branding
     ? [branding.schoolName, branding.mascot].filter(Boolean).join(" | ")
     : "High school golf performance tracking";
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <header className="border-b bg-white" style={{ borderColor: `${primaryColor}22` }}>
@@ -55,9 +71,12 @@ export function SiteHeader({ branding }: { branding: TeamBranding | null }) {
             style={{ backgroundColor: secondaryColor }}
           >
             {branding?.logoUrl ? (
-              <img
+              <Image
                 src={branding.logoUrl}
                 alt={`${displayName} logo`}
+                width={56}
+                height={56}
+                unoptimized
                 className="h-full w-full object-cover"
               />
             ) : (
@@ -81,32 +100,54 @@ export function SiteHeader({ branding }: { branding: TeamBranding | null }) {
           </div>
         </Link>
 
-        <nav className="flex flex-wrap gap-2" aria-label="Primary navigation">
-          {navItems.map((item) => {
-            const isActive = isActivePath(pathname, item.href);
+        <div className="flex flex-wrap items-center gap-2">
+          {isAuthenticated ? (
+            <nav className="flex flex-wrap gap-2" aria-label="Primary navigation">
+              {navItems.map((item) => {
+                const isActive = isActivePath(pathname, item.href);
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={isActive ? "page" : undefined}
-                className="rounded-md px-3 py-2 text-sm font-medium transition hover:bg-green-50"
-                style={
-                  isActive
-                    ? {
-                        backgroundColor: primaryColor,
-                        color: "#ffffff"
-                      }
-                    : {
-                        color: secondaryColor
-                      }
-                }
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    className="rounded-md px-3 py-2 text-sm font-medium transition hover:bg-green-50"
+                    style={
+                      isActive
+                        ? {
+                            backgroundColor: primaryColor,
+                            color: "#ffffff"
+                          }
+                        : {
+                            color: secondaryColor
+                          }
+                    }
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          ) : (
+            <Link
+              href="/login"
+              className="rounded-md px-3 py-2 text-sm font-semibold transition hover:bg-green-50"
+              style={{ color: secondaryColor }}
+            >
+              Login
+            </Link>
+          )}
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="rounded-md border px-3 py-2 text-sm font-semibold transition hover:bg-gray-50"
+              style={{ borderColor: `${secondaryColor}22`, color: secondaryColor }}
+            >
+              Sign Out
+            </button>
+          ) : null}
+        </div>
       </div>
     </header>
   );

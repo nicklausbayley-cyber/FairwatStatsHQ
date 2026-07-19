@@ -1,6 +1,11 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
-import { createServiceRoleClient } from "../../../../../lib/supabase/server";
+import {
+  authStatusCode,
+  getCurrentTeam,
+  isTeamStaff,
+  type CurrentTeamContext
+} from "../../../../../lib/auth/get-current-team";
 
 export const dynamic = "force-dynamic";
 
@@ -57,24 +62,8 @@ function validateHoleInput(hole: CourseHoleInput) {
   return null;
 }
 
-async function getTeamCourse(courseId: string) {
-  const supabase = createServiceRoleClient();
-
-  const { data: team, error: teamError } = await supabase
-    .from("teams")
-    .select("id")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (teamError) {
-    return { supabase, course: null, error: `Could not load team: ${teamError.message}` };
-  }
-
-  if (!team) {
-    return { supabase, course: null, error: "No team found. Run the demo seed file first." };
-  }
-
+async function getTeamCourse(courseId: string, currentTeam: CurrentTeamContext) {
+  const { supabase, team } = currentTeam;
   const { data: course, error: courseError } = await supabase
     .from("courses")
     .select("id, team_id, name")
@@ -101,7 +90,16 @@ export async function GET(_request: Request, { params }: RouteContext) {
   }
 
   try {
-    const { supabase, course, error } = await getTeamCourse(courseId);
+    const currentTeam = await getCurrentTeam();
+
+    if (!currentTeam.data) {
+      return jsonResult(currentTeam.error, authStatusCode(currentTeam.status));
+    }
+
+    const { supabase, course, error } = await getTeamCourse(
+      courseId,
+      currentTeam.data
+    );
 
     if (error || !course) {
       return jsonResult(error ?? "Course not found.", error?.includes("not found") ? 404 : 500);
@@ -166,7 +164,20 @@ export async function PUT(request: Request, { params }: RouteContext) {
   }
 
   try {
-    const { supabase, course, error } = await getTeamCourse(courseId);
+    const currentTeam = await getCurrentTeam();
+
+    if (!currentTeam.data) {
+      return jsonResult(currentTeam.error, authStatusCode(currentTeam.status));
+    }
+
+    if (!isTeamStaff(currentTeam.data.role)) {
+      return jsonResult("Only coaches and admins can manage course holes.", 403);
+    }
+
+    const { supabase, course, error } = await getTeamCourse(
+      courseId,
+      currentTeam.data
+    );
 
     if (error || !course) {
       return jsonResult(error ?? "Course not found.", error?.includes("not found") ? 404 : 500);
