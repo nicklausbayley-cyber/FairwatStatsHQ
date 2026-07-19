@@ -1,7 +1,12 @@
-import { getActiveSeasonForTeam } from "../../lib/seasons/active-season";
+import {
+  getActiveSeasonForTeam,
+  type ActiveSeason
+} from "../../lib/seasons/active-season";
 import { createServiceRoleClient } from "../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+
+type SupabaseServiceClient = ReturnType<typeof createServiceRoleClient>;
 
 type SearchParams = {
   courseId?: string | string[];
@@ -156,6 +161,18 @@ function getSearchValue(value: string | string[] | undefined) {
   return value ?? "";
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    if (error.message === "fetch failed") {
+      return "Could not reach Supabase from the dev server. Check that your Supabase project is awake, your environment variables are set, and then restart npm run dev.";
+    }
+
+    return error.message;
+  }
+
+  return "Unable to load statistics data.";
+}
+
 function isNumber(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
@@ -283,6 +300,22 @@ function buildHoleStats(courseHoles: CourseHoleRow[], roundHoles: RoundHoleRow[]
   });
 }
 
+function getHardestHoles(holes: HoleStats[]) {
+  return [...holes]
+    .filter((hole) => hole.roundsPlayed > 0 && hole.averageScoreToPar !== null)
+    .sort((a, b) => {
+      const bAverage = b.averageScoreToPar ?? Number.NEGATIVE_INFINITY;
+      const aAverage = a.averageScoreToPar ?? Number.NEGATIVE_INFINITY;
+
+      if (bAverage !== aAverage) {
+        return bAverage - aAverage;
+      }
+
+      return a.holeNumber - b.holeNumber;
+    })
+    .slice(0, 3);
+}
+
 function buildHoleBreakdownNote(
   selectedCourseId: string,
   holeCount: number,
@@ -305,6 +338,26 @@ function buildHoleBreakdownNote(
   }
 
   return null;
+}
+
+function emptyHoleBreakdown(
+  activeSeasonName: string | null,
+  note: string
+): HoleBreakdown {
+  return {
+    courses: [],
+    events: [],
+    selectedCourseId: "",
+    selectedCourseName: null,
+    selectedEventId: "",
+    selectedEventName: null,
+    activeSeasonName,
+    holes: [],
+    hardestHoles: [],
+    scorecardCount: 0,
+    playerCount: 0,
+    note
+  };
 }
 
 function formatAverage(value: number | null) {
@@ -337,6 +390,204 @@ function formatToPar(value: number | null) {
 
 function formatEventLabel(event: EventOption) {
   return `${event.name} (${event.eventDate})`;
+}
+
+function buildPlayerStats(players: PlayerRow[], rounds: RoundRow[]) {
+  const roundsByPlayer = new Map<string, RoundRow[]>();
+
+  rounds.forEach((round) => {
+    const playerRounds = roundsByPlayer.get(round.player_id) ?? [];
+    playerRounds.push(round);
+    roundsByPlayer.set(round.player_id, playerRounds);
+  });
+
+  return players
+    .map((player) => {
+      const playerRounds = roundsByPlayer.get(player.id) ?? [];
+
+      return {
+        id: player.id,
+        playerName: `${player.first_name} ${player.last_name}`,
+        roundsPlayed: playerRounds.length,
+        averageScore: average(playerRounds.map((round) => round.score)),
+        bestScore: bestScore(playerRounds.map((round) => round.score)),
+        averagePutts: average(playerRounds.map((round) => round.putts)),
+        fairwayPercentage: percentageFromTotals(
+          playerRounds,
+          "fairways_hit",
+          "fairways_possible"
+        ),
+        girPercentage: percentageFromTotals(
+          playerRounds,
+          "greens_in_regulation",
+          "gir_possible"
+        ),
+        averagePenalties: average(playerRounds.map((round) => round.penalties)),
+        averageThreePutts: average(playerRounds.map((round) => round.three_putts))
+      };
+    })
+    .sort((a, b) => {
+      const aAverage = a.averageScore ?? Number.POSITIVE_INFINITY;
+      const bAverage = b.averageScore ?? Number.POSITIVE_INFINITY;
+
+      if (aAverage !== bAverage) {
+        return aAverage - bAverage;
+      }
+
+      return a.playerName.localeCompare(b.playerName);
+    });
+}
+
+async function getHoleBreakdown(
+  supabase: SupabaseServiceClient,
+  teamId: string,
+  activeSeason: ActiveSeason | null,
+  rounds: RoundRow[],
+  filters: StatisticsFilters
+): Promise<HoleBreakdown> {
+  try {
+    const [coursesResult, eventsResult] = await Promise.all([
+      supabase
+        .from("courses")
+        .select("id, name, location")
+        .eq("team_id", teamId)
+        .order("name", { ascending: true }),
+      supabase
+        .from("events")
+        .select("id, name, event_date, event_type, season_id")
+        .eq("team_id", teamId)
+        .order("event_date", { ascending: true })
+        .order("name", { ascending: true })
+    ]);
+
+    if (coursesResult.error) {
+      return emptyHoleBreakdown(
+        activeSeason?.name ?? null,
+        `Hole-by-hole analytics could not load courses: ${coursesResult.error.message}`
+      );
+    }
+
+    if (eventsResult.error) {
+      return emptyHoleBreakdown(
+        activeSeason?.name ?? null,
+        `Hole-by-hole analytics could not load events: ${eventsResult.error.message}`
+      );
+    }
+
+    const courses = (coursesResult.data ?? []) as CourseRow[];
+    const events = (eventsResult.data ?? []) as EventRow[];
+    const eventOptionsSource = activeSeason
+      ? events.filter((event) => event.season_id === activeSeason.id)
+      : events;
+    const selectedCourse =
+      courses.find((course) => course.id === filters.courseId) ?? courses[0] ?? null;
+    const selectedEvent =
+      eventOptionsSource.find((event) => event.id === filters.eventId) ?? null;
+    const selectedCourseId = selectedCourse?.id ?? "";
+    const selectedEventId = selectedEvent?.id ?? "";
+    const baseBreakdown = {
+      courses: courses.map((course) => ({
+        id: course.id,
+        name: course.name,
+        location: course.location
+      })),
+      events: eventOptionsSource.map((event) => ({
+        id: event.id,
+        name: event.name,
+        eventDate: event.event_date,
+        eventType: event.event_type
+      })),
+      selectedCourseId,
+      selectedCourseName: selectedCourse?.name ?? null,
+      selectedEventId,
+      selectedEventName: selectedEvent?.name ?? null,
+      activeSeasonName: activeSeason?.name ?? null
+    };
+
+    if (!selectedCourseId) {
+      return {
+        ...baseBreakdown,
+        holes: [],
+        hardestHoles: [],
+        scorecardCount: 0,
+        playerCount: 0,
+        note: buildHoleBreakdownNote("", 0, 0)
+      };
+    }
+
+    const { data: courseHolesData, error: courseHolesError } = await supabase
+      .from("course_holes")
+      .select("course_id, hole_number, par, handicap, yardage")
+      .eq("course_id", selectedCourseId)
+      .order("hole_number", { ascending: true });
+
+    if (courseHolesError) {
+      return {
+        ...baseBreakdown,
+        holes: [],
+        hardestHoles: [],
+        scorecardCount: 0,
+        playerCount: 0,
+        note: `Hole-by-hole analytics could not load course holes: ${courseHolesError.message}`
+      };
+    }
+
+    const selectedCourseHoles = (courseHolesData ?? []) as CourseHoleRow[];
+    const filteredRoundIds = rounds
+      .filter((round) => !selectedEventId || round.event_id === selectedEventId)
+      .map((round) => round.id);
+    let roundHoles: RoundHoleRow[] = [];
+
+    if (filteredRoundIds.length > 0) {
+      let roundHolesQuery = supabase
+        .from("round_holes")
+        .select(
+          "id, round_id, player_id, event_id, course_id, hole_number, par, handicap, score, putts, fir, gir, penalty"
+        )
+        .eq("team_id", teamId)
+        .eq("course_id", selectedCourseId)
+        .in("round_id", filteredRoundIds);
+
+      if (selectedEventId) {
+        roundHolesQuery = roundHolesQuery.eq("event_id", selectedEventId);
+      }
+
+      const { data: roundHolesData, error: roundHolesError } = await roundHolesQuery
+        .order("hole_number", { ascending: true })
+        .order("created_at", { ascending: true });
+
+      if (roundHolesError) {
+        return {
+          ...baseBreakdown,
+          holes: buildHoleStats(selectedCourseHoles, []),
+          hardestHoles: [],
+          scorecardCount: 0,
+          playerCount: 0,
+          note: `Hole-by-hole analytics could not load round holes: ${roundHolesError.message}`
+        };
+      }
+
+      roundHoles = (roundHolesData ?? []) as RoundHoleRow[];
+    }
+
+    const holes = buildHoleStats(selectedCourseHoles, roundHoles);
+    const scorecardCount = new Set(roundHoles.map((hole) => hole.round_id)).size;
+    const playerCount = new Set(roundHoles.map((hole) => hole.player_id)).size;
+
+    return {
+      ...baseBreakdown,
+      holes,
+      hardestHoles: getHardestHoles(holes),
+      scorecardCount,
+      playerCount,
+      note: buildHoleBreakdownNote(selectedCourseId, holes.length, scorecardCount)
+    };
+  } catch (error) {
+    return emptyHoleBreakdown(
+      activeSeason?.name ?? null,
+      `Hole-by-hole analytics could not reach Supabase: ${getErrorMessage(error)}`
+    );
+  }
 }
 
 async function getStatistics(filters: StatisticsFilters): Promise<StatisticsState> {
@@ -372,25 +623,14 @@ async function getStatistics(filters: StatisticsFilters): Promise<StatisticsStat
       )
       .eq("team_id", team.id);
 
-    const [playersResult, roundsResult, coursesResult, eventsResult] = await Promise.all([
+    const [playersResult, roundsResult] = await Promise.all([
       supabase
         .from("players")
         .select("id, first_name, last_name")
         .eq("team_id", team.id)
         .order("last_name", { ascending: true })
         .order("first_name", { ascending: true }),
-      activeSeason ? roundsQuery.eq("season_id", activeSeason.id) : roundsQuery,
-      supabase
-        .from("courses")
-        .select("id, name, location")
-        .eq("team_id", team.id)
-        .order("name", { ascending: true }),
-      supabase
-        .from("events")
-        .select("id, name, event_date, event_type, season_id")
-        .eq("team_id", team.id)
-        .order("event_date", { ascending: true })
-        .order("name", { ascending: true })
+      activeSeason ? roundsQuery.eq("season_id", activeSeason.id) : roundsQuery
     ]);
 
     if (playersResult.error) {
@@ -407,189 +647,28 @@ async function getStatistics(filters: StatisticsFilters): Promise<StatisticsStat
       };
     }
 
-    if (coursesResult.error) {
-      return {
-        status: "error",
-        message: coursesResult.error.message
-      };
-    }
-
-    if (eventsResult.error) {
-      return {
-        status: "error",
-        message: eventsResult.error.message
-      };
-    }
-
     const players = (playersResult.data ?? []) as PlayerRow[];
     const rounds = (roundsResult.data ?? []) as RoundRow[];
-    const courses = (coursesResult.data ?? []) as CourseRow[];
-    const events = (eventsResult.data ?? []) as EventRow[];
-    const eventOptionsSource = activeSeason
-      ? events.filter((event) => event.season_id === activeSeason.id)
-      : events;
-    const selectedCourse =
-      courses.find((course) => course.id === filters.courseId) ?? courses[0] ?? null;
-    const selectedEvent =
-      eventOptionsSource.find((event) => event.id === filters.eventId) ?? null;
-    const selectedCourseId = selectedCourse?.id ?? "";
-    const selectedEventId = selectedEvent?.id ?? "";
-
-    let selectedCourseHoles: CourseHoleRow[] = [];
-    let roundHoles: RoundHoleRow[] = [];
-
-    if (selectedCourseId) {
-      const { data: courseHolesData, error: courseHolesError } = await supabase
-        .from("course_holes")
-        .select("course_id, hole_number, par, handicap, yardage")
-        .eq("course_id", selectedCourseId)
-        .order("hole_number", { ascending: true });
-
-      if (courseHolesError) {
-        return {
-          status: "error",
-          message: courseHolesError.message
-        };
-      }
-
-      selectedCourseHoles = (courseHolesData ?? []) as CourseHoleRow[];
-
-      const filteredRoundIds = rounds
-        .filter((round) => !selectedEventId || round.event_id === selectedEventId)
-        .map((round) => round.id);
-
-      if (filteredRoundIds.length > 0) {
-        let roundHolesQuery = supabase
-          .from("round_holes")
-          .select(
-            "id, round_id, player_id, event_id, course_id, hole_number, par, handicap, score, putts, fir, gir, penalty"
-          )
-          .eq("team_id", team.id)
-          .eq("course_id", selectedCourseId)
-          .in("round_id", filteredRoundIds);
-
-        if (selectedEventId) {
-          roundHolesQuery = roundHolesQuery.eq("event_id", selectedEventId);
-        }
-
-        const { data: roundHolesData, error: roundHolesError } = await roundHolesQuery
-          .order("hole_number", { ascending: true })
-          .order("created_at", { ascending: true });
-
-        if (roundHolesError) {
-          return {
-            status: "error",
-            message: roundHolesError.message
-          };
-        }
-
-        roundHoles = (roundHolesData ?? []) as RoundHoleRow[];
-      }
-    }
-
-    const roundsByPlayer = new Map<string, RoundRow[]>();
-
-    rounds.forEach((round) => {
-      const playerRounds = roundsByPlayer.get(round.player_id) ?? [];
-      playerRounds.push(round);
-      roundsByPlayer.set(round.player_id, playerRounds);
-    });
-
-    const playerStats = players
-      .map((player) => {
-        const playerRounds = roundsByPlayer.get(player.id) ?? [];
-
-        return {
-          id: player.id,
-          playerName: `${player.first_name} ${player.last_name}`,
-          roundsPlayed: playerRounds.length,
-          averageScore: average(playerRounds.map((round) => round.score)),
-          bestScore: bestScore(playerRounds.map((round) => round.score)),
-          averagePutts: average(playerRounds.map((round) => round.putts)),
-          fairwayPercentage: percentageFromTotals(
-            playerRounds,
-            "fairways_hit",
-            "fairways_possible"
-          ),
-          girPercentage: percentageFromTotals(
-            playerRounds,
-            "greens_in_regulation",
-            "gir_possible"
-          ),
-          averagePenalties: average(playerRounds.map((round) => round.penalties)),
-          averageThreePutts: average(
-            playerRounds.map((round) => round.three_putts)
-          )
-        };
-      })
-      .sort((a, b) => {
-        const aAverage = a.averageScore ?? Number.POSITIVE_INFINITY;
-        const bAverage = b.averageScore ?? Number.POSITIVE_INFINITY;
-
-        if (aAverage !== bAverage) {
-          return aAverage - bAverage;
-        }
-
-        return a.playerName.localeCompare(b.playerName);
-      });
-
-    const holeStats = buildHoleStats(selectedCourseHoles, roundHoles);
-    const hardestHoles = [...holeStats]
-      .filter((hole) => hole.roundsPlayed > 0 && hole.averageScoreToPar !== null)
-      .sort((a, b) => {
-        const bAverage = b.averageScoreToPar ?? Number.NEGATIVE_INFINITY;
-        const aAverage = a.averageScoreToPar ?? Number.NEGATIVE_INFINITY;
-
-        if (bAverage !== aAverage) {
-          return bAverage - aAverage;
-        }
-
-        return a.holeNumber - b.holeNumber;
-      })
-      .slice(0, 3);
-    const scorecardCount = new Set(roundHoles.map((hole) => hole.round_id)).size;
-    const playerCount = new Set(roundHoles.map((hole) => hole.player_id)).size;
+    const playerStats = buildPlayerStats(players, rounds);
+    const holeBreakdown = await getHoleBreakdown(
+      supabase,
+      team.id,
+      activeSeason,
+      rounds,
+      filters
+    );
 
     return {
       status: "ready",
       teamName: team.name,
       activeSeasonName: activeSeason?.name ?? null,
       playerStats,
-      holeBreakdown: {
-        courses: courses.map((course) => ({
-          id: course.id,
-          name: course.name,
-          location: course.location
-        })),
-        events: eventOptionsSource.map((event) => ({
-          id: event.id,
-          name: event.name,
-          eventDate: event.event_date,
-          eventType: event.event_type
-        })),
-        selectedCourseId,
-        selectedCourseName: selectedCourse?.name ?? null,
-        selectedEventId,
-        selectedEventName: selectedEvent?.name ?? null,
-        activeSeasonName: activeSeason?.name ?? null,
-        holes: holeStats,
-        hardestHoles,
-        scorecardCount,
-        playerCount,
-        note: buildHoleBreakdownNote(
-          selectedCourseId,
-          holeStats.length,
-          scorecardCount
-        )
-      }
+      holeBreakdown
     };
   } catch (error) {
     return {
       status: "error",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Unable to load statistics data."
+      message: getErrorMessage(error)
     };
   }
 }
@@ -714,62 +793,14 @@ function PlayerStatRow({ player }: { player: PlayerStats }) {
         </p>
         <p className="font-medium text-gray-950">{player.playerName}</p>
       </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
-          Rounds
-        </p>
-        <p className="text-gray-700">{player.roundsPlayed}</p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
-          Avg Score
-        </p>
-        <p className="font-semibold text-gray-950">
-          {formatAverage(player.averageScore)}
-        </p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
-          Best
-        </p>
-        <p className="text-gray-700">{formatWholeNumber(player.bestScore)}</p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
-          Avg Putts
-        </p>
-        <p className="text-gray-700">{formatAverage(player.averagePutts)}</p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
-          Fairways
-        </p>
-        <p className="text-gray-700">
-          {formatPercentage(player.fairwayPercentage)}
-        </p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
-          GIR
-        </p>
-        <p className="text-gray-700">{formatPercentage(player.girPercentage)}</p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
-          Avg Penalties
-        </p>
-        <p className="text-gray-700">
-          {formatAverage(player.averagePenalties)}
-        </p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
-          Avg Three-putts
-        </p>
-        <p className="text-gray-700">
-          {formatAverage(player.averageThreePutts)}
-        </p>
-      </div>
+      <StatCell label="Rounds" value={player.roundsPlayed.toString()} />
+      <StatCell label="Avg Score" value={formatAverage(player.averageScore)} strong />
+      <StatCell label="Best" value={formatWholeNumber(player.bestScore)} />
+      <StatCell label="Avg Putts" value={formatAverage(player.averagePutts)} />
+      <StatCell label="Fairways" value={formatPercentage(player.fairwayPercentage)} />
+      <StatCell label="GIR" value={formatPercentage(player.girPercentage)} />
+      <StatCell label="Avg Penalties" value={formatAverage(player.averagePenalties)} />
+      <StatCell label="Avg Three-putts" value={formatAverage(player.averageThreePutts)} />
     </div>
   );
 }
@@ -990,7 +1021,7 @@ function StatCell({
 }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 2xl:hidden">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden 2xl:hidden">
         {label}
       </p>
       <p className={strong ? "font-semibold text-gray-950" : "text-gray-700"}>
