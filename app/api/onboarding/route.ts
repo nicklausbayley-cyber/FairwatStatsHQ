@@ -26,6 +26,18 @@ type AdminClientGuard =
 type JsonBody = Record<string, unknown>;
 type StaffRole = "admin" | "coach";
 type ProfileRole = StaffRole | "player";
+type AccountStatus = "active" | "invited" | "not_connected";
+type AccountStatusItem = {
+  id: string;
+  teamId: string;
+  profileId: string | null;
+  playerId: string | null;
+  name: string;
+  email: string | null;
+  role: ProfileRole;
+  status: AccountStatus;
+  lastSignInAt: string | null;
+};
 type TeamInsert = Database["public"]["Tables"]["teams"]["Insert"];
 type PlayerInsert = Database["public"]["Tables"]["players"]["Insert"];
 
@@ -200,6 +212,48 @@ async function findAuthUserByEmail(
   }
 
   return { user: null, error: null };
+}
+
+function getAccountStatus(user: User | undefined): AccountStatus {
+  if (!user) {
+    return "not_connected";
+  }
+
+  return user.email_confirmed_at ? "active" : "invited";
+}
+
+async function listAllAuthUsers(
+  supabase: AdminSupabaseClient
+): Promise<
+  | { users: User[]; error: null }
+  | { users: []; error: string }
+> {
+  const users: User[] = [];
+
+  for (let page = 1; page <= maxAuthUserPages; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: 1000
+    });
+
+    if (error) {
+      return {
+        users: [],
+        error: error.message
+      };
+    }
+
+    users.push(...data.users);
+
+    if (data.users.length < 1000) {
+      break;
+    }
+  }
+
+  return {
+    users,
+    error: null
+  };
 }
 
 async function getOrInviteAuthUser({
@@ -776,34 +830,135 @@ export async function GET() {
     return adminClient.response;
   }
 
-  const [teamsResult, playersResult] = await Promise.all([
-    adminClient.supabase
-      .from("teams")
-      .select(
-        "id, name, school_name, mascot, primary_color, secondary_color, contact_email"
-      )
-      .order("name", { ascending: true }),
-    adminClient.supabase
-      .from("players")
-      .select(
-        "id, team_id, first_name, last_name, graduation_year, status, profile_id"
-      )
-      .order("last_name", { ascending: true })
-      .order("first_name", { ascending: true })
-  ]);
+  const [teamsResult, playersResult, profilesResult, authUsersResult] =
+    await Promise.all([
+      adminClient.supabase
+        .from("teams")
+        .select(
+          "id, name, school_name, mascot, primary_color, secondary_color, contact_email"
+        )
+        .order("name", { ascending: true }),
+      adminClient.supabase
+        .from("players")
+        .select(
+          "id, team_id, first_name, last_name, graduation_year, status, profile_id"
+        )
+        .order("last_name", { ascending: true })
+        .order("first_name", { ascending: true }),
+      adminClient.supabase
+        .from("profiles")
+        .select("id, team_id, role, full_name, email")
+        .order("full_name", { ascending: true }),
+      listAllAuthUsers(adminClient.supabase)
+    ]);
 
   if (teamsResult.error) {
-    return jsonResult(`Could not load teams: ${teamsResult.error.message}`, 500);
+    return jsonResult(
+      `Could not load teams: ${teamsResult.error.message}`,
+      500
+    );
   }
 
   if (playersResult.error) {
-    return jsonResult(`Could not load players: ${playersResult.error.message}`, 500);
+    return jsonResult(
+      `Could not load players: ${playersResult.error.message}`,
+      500
+    );
   }
+
+  if (profilesResult.error) {
+    return jsonResult(
+      `Could not load profiles: ${profilesResult.error.message}`,
+      500
+    );
+  }
+
+  if (authUsersResult.error) {
+    return jsonResult(
+      `Could not load account statuses: ${authUsersResult.error}`,
+      500
+    );
+  }
+
+  const teams = teamsResult.data ?? [];
+  const players = playersResult.data ?? [];
+  const profiles = profilesResult.data ?? [];
+
+  const authUsersById = new Map(
+    authUsersResult.users.map((user) => [user.id, user])
+  );
+
+  const profilesById = new Map(
+    profiles.map((profile) => [profile.id, profile])
+  );
+
+  const teamNamesById = new Map(
+    teams.map((team) => [team.id, team.name])
+  );
+
+  const staffAccounts: AccountStatusItem[] = profiles
+    .filter(
+      (profile) =>
+        profile.role === "admin" || profile.role === "coach"
+    )
+    .map((profile) => {
+      const authUser = authUsersById.get(profile.id);
+
+      return {
+        id: `profile-${profile.id}`,
+        teamId: profile.team_id,
+        profileId: profile.id,
+        playerId: null,
+        name: profile.full_name,
+        email: profile.email || authUser?.email || null,
+        role: profile.role,
+        status: getAccountStatus(authUser),
+        lastSignInAt: authUser?.last_sign_in_at ?? null
+      };
+    });
+
+  const playerAccounts: AccountStatusItem[] = players.map((player) => {
+    const profile = player.profile_id
+      ? profilesById.get(player.profile_id)
+      : undefined;
+
+    const authUser = player.profile_id
+      ? authUsersById.get(player.profile_id)
+      : undefined;
+
+    return {
+      id: `player-${player.id}`,
+      teamId: player.team_id,
+      profileId: player.profile_id,
+      playerId: player.id,
+      name: `${player.first_name} ${player.last_name}`,
+      email: profile?.email || authUser?.email || null,
+      role: "player",
+      status: getAccountStatus(authUser),
+      lastSignInAt: authUser?.last_sign_in_at ?? null
+    };
+  });
+
+  const roleOrder: Record<ProfileRole, number> = {
+    admin: 0,
+    coach: 1,
+    player: 2
+  };
+
+  const accounts = [...staffAccounts, ...playerAccounts].sort(
+    (first, second) =>
+      (teamNamesById.get(first.teamId) ?? "").localeCompare(
+        teamNamesById.get(second.teamId) ?? ""
+      ) ||
+      roleOrder[first.role] - roleOrder[second.role] ||
+      first.name.localeCompare(second.name)
+  );
 
   return NextResponse.json({
     success: true,
-    teams: teamsResult.data ?? [],
-    players: playersResult.data ?? []
+    teams,
+    players,
+    accounts
   });
 }
 

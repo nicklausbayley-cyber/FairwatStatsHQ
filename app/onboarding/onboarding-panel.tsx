@@ -39,6 +39,23 @@ type PlayerOption = {
   profile_id: string | null;
 };
 
+type AccountStatusValue =
+  | "active"
+  | "invited"
+  | "not_connected";
+
+type AccountStatusItem = {
+  id: string;
+  teamId: string;
+  profileId: string | null;
+  playerId: string | null;
+  name: string;
+  email: string | null;
+  role: "admin" | "coach" | "player";
+  status: AccountStatusValue;
+  lastSignInAt: string | null;
+};
+
 type FormKey =
   | "team"
   | "staff"
@@ -57,6 +74,7 @@ type LoadResult = {
   message?: string;
   teams?: TeamOption[];
   players?: PlayerOption[];
+  accounts?: AccountStatusItem[];
 };
 
 type ActionResult = {
@@ -132,6 +150,60 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+function getAccountRoleLabel(
+  role: AccountStatusItem["role"]
+) {
+  if (role === "admin") {
+    return "Admin";
+  }
+
+  if (role === "coach") {
+    return "Coach";
+  }
+
+  return "Player";
+}
+
+function getAccountStatusLabel(status: AccountStatusValue) {
+  if (status === "active") {
+    return "Active";
+  }
+
+  if (status === "invited") {
+    return "Invitation pending";
+  }
+
+  return "Not connected";
+}
+
+function getAccountStatusTone(
+  status: AccountStatusValue
+): "green" | "amber" | "slate" {
+  if (status === "active") {
+    return "green";
+  }
+
+  if (status === "invited") {
+    return "amber";
+  }
+
+  return "slate";
+}
+
+function formatLastSignIn(value: string | null) {
+  if (!value) {
+    return "Never";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Never";
+  }
+
+  return date.toLocaleDateString();
+}
+
 async function postOnboarding(payload: Record<string, unknown>) {
   const response = await fetch("/api/onboarding", {
     method: "POST",
@@ -153,6 +225,8 @@ export function OnboardingPanel() {
   const router = useRouter();
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [players, setPlayers] = useState<PlayerOption[]>([]);
+  const [accounts, setAccounts] = useState<AccountStatusItem[]>([]);
+  const [accountTeamFilter, setAccountTeamFilter] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pendingForm, setPendingForm] = useState<FormKey | null>(null);
@@ -181,6 +255,46 @@ export function OnboardingPanel() {
     [players, playerLoginForm.teamId]
   );
 
+  const teamNamesById = useMemo(
+    () => new Map(teams.map((team) => [team.id, team.name])),
+    [teams]
+  );
+
+  const filteredAccounts = useMemo(() => {
+    const roleOrder: Record<AccountStatusItem["role"], number> = {
+      admin: 0,
+      coach: 1,
+      player: 2
+    };
+
+    return accounts
+      .filter(
+        (account) =>
+          !accountTeamFilter ||
+          account.teamId === accountTeamFilter
+      )
+      .sort(
+        (first, second) =>
+          (teamNamesById.get(first.teamId) ?? "").localeCompare(
+            teamNamesById.get(second.teamId) ?? ""
+          ) ||
+          roleOrder[first.role] - roleOrder[second.role] ||
+          first.name.localeCompare(second.name)
+      );
+  }, [accounts, accountTeamFilter, teamNamesById]);
+
+  const activeAccountCount = filteredAccounts.filter(
+    (account) => account.status === "active"
+  ).length;
+
+  const invitedAccountCount = filteredAccounts.filter(
+    (account) => account.status === "invited"
+  ).length;
+
+  const notConnectedAccountCount = filteredAccounts.filter(
+    (account) => account.status === "not_connected"
+  ).length;
+
   const loadOptions = useCallback(async (preferredTeamId?: string) => {
     setIsLoading(true);
     setLoadError(null);
@@ -198,6 +312,12 @@ export function OnboardingPanel() {
 
       setTeams(nextTeams);
       setPlayers(nextPlayers);
+      setAccounts(result.accounts ?? []);
+      setAccountTeamFilter((current) =>
+        current && !nextTeams.some((team) => team.id === current)
+          ? ""
+          : current
+      );
       setStaffForm((current) => ({
         ...current,
         teamId: getDefaultTeamId(nextTeams, current.teamId, preferredTeamId)
@@ -421,6 +541,20 @@ export function OnboardingPanel() {
     }
   }
 
+  function prepareInvitationResend(email: string) {
+    setResendInviteForm({ email });
+    setMessage("resendInvite", null);
+
+    window.setTimeout(() => {
+      document
+        .getElementById("resend-account-invitation")
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+    }, 0);
+  }
+
   async function handleResendInvitation(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -511,6 +645,141 @@ export function OnboardingPanel() {
       {isLoading ? (
         <EmptyState message="Loading onboarding data..." />
       ) : null}
+
+      <FormSection
+        eyebrow="Account Access"
+        title="Account Status"
+        description="Review coach, administrator, and player access across every team. Active means the invitation email has been accepted and confirmed."
+        footer={
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-sm text-slate-500">
+              Refresh after a user accepts an invitation in another browser.
+            </span>
+
+            <button
+              type="button"
+              onClick={() => void loadOptions()}
+              disabled={isLoading}
+              className={secondaryButtonClassName}
+            >
+              {isLoading ? "Refreshing..." : "Refresh Status"}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-5">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <SummaryTile
+              label="Active"
+              value={activeAccountCount.toString()}
+            />
+            <SummaryTile
+              label="Invitations Pending"
+              value={invitedAccountCount.toString()}
+            />
+            <SummaryTile
+              label="Not Connected"
+              value={notConnectedAccountCount.toString()}
+            />
+          </div>
+
+          <label className="block max-w-sm space-y-2">
+            <span className="text-sm font-semibold text-slate-700">
+              Filter by team
+            </span>
+
+            <select
+              value={accountTeamFilter}
+              onChange={(event) =>
+                setAccountTeamFilter(event.target.value)
+              }
+              className={inputClassName}
+            >
+              <option value="">All teams</option>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {filteredAccounts.length === 0 ? (
+            <EmptyState message="No coach or player account records were found." />
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <th className="px-4 py-3">Name</th>
+                    <th className="px-4 py-3">Team</th>
+                    <th className="px-4 py-3">Role</th>
+                    <th className="px-4 py-3">Email</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Last Sign In</th>
+                    <th className="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {filteredAccounts.map((account) => (
+                    <tr
+                      key={account.id}
+                      className="align-middle hover:bg-green-50/40"
+                    >
+                      <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-950">
+                        {account.name}
+                      </td>
+
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                        {teamNamesById.get(account.teamId) ??
+                          "Unknown team"}
+                      </td>
+
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                        {getAccountRoleLabel(account.role)}
+                      </td>
+
+                      <td className="px-4 py-3 text-slate-600">
+                        {account.email ?? "No account email"}
+                      </td>
+
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <Badge
+                          tone={getAccountStatusTone(account.status)}
+                        >
+                          {getAccountStatusLabel(account.status)}
+                        </Badge>
+                      </td>
+
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                        {formatLastSignIn(account.lastSignInAt)}
+                      </td>
+
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                        {account.status === "invited" &&
+                        account.email ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              prepareInvitationResend(account.email!)
+                            }
+                            className={secondaryButtonClassName}
+                          >
+                            Prepare Resend
+                          </button>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </FormSection>
 
       <form onSubmit={handleCreateTeam}>
         <FormSection
@@ -815,7 +1084,10 @@ export function OnboardingPanel() {
         </FormSection>
       </form>
 
-      <form onSubmit={handleResendInvitation}>
+      <form
+        id="resend-account-invitation"
+        onSubmit={handleResendInvitation}
+      >
         <FormSection
           eyebrow="Account Support"
           title="Resend Account Invitation"
