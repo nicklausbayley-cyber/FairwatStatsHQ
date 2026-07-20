@@ -39,7 +39,13 @@ type PlayerOption = {
   profile_id: string | null;
 };
 
-type FormKey = "team" | "staff" | "players" | "playerLogin" | "season";
+type FormKey =
+  | "team"
+  | "staff"
+  | "players"
+  | "playerLogin"
+  | "resendInvite"
+  | "season";
 
 type FormMessage = {
   type: "success" | "error";
@@ -88,7 +94,10 @@ const defaultPlayerLoginForm = {
   teamId: "",
   playerId: "",
   playerEmail: "",
-  temporaryPassword: ""
+};
+
+const defaultResendInviteForm = {
+  email: ""
 };
 
 const defaultSeasonForm = {
@@ -152,12 +161,16 @@ export function OnboardingPanel() {
   const [staffForm, setStaffForm] = useState(defaultStaffForm);
   const [bulkPlayersForm, setBulkPlayersForm] = useState(defaultBulkPlayersForm);
   const [playerLoginForm, setPlayerLoginForm] = useState(defaultPlayerLoginForm);
+  const [resendInviteForm, setResendInviteForm] = useState(
+    defaultResendInviteForm
+  );
   const [seasonForm, setSeasonForm] = useState(defaultSeasonForm);
   const [messages, setMessages] = useState<Record<FormKey, FormMessage | null>>({
     team: null,
     staff: null,
     players: null,
     playerLogin: null,
+    resendInvite: null,
     season: null
   });
 
@@ -320,8 +333,7 @@ export function OnboardingPanel() {
         ...current,
         fullName: "",
         email: "",
-        temporaryPassword: ""
-      }));
+            }));
       await refreshAfterMutation(staffForm.teamId);
       setMessage("staff", { type: "success", text: result.message });
     } catch (error) {
@@ -393,8 +405,7 @@ export function OnboardingPanel() {
       setPlayerLoginForm((current) => ({
         ...current,
         playerEmail: "",
-        temporaryPassword: ""
-      }));
+            }));
       await refreshAfterMutation(playerLoginForm.teamId);
       setMessage("playerLogin", { type: "success", text: result.message });
     } catch (error) {
@@ -403,6 +414,46 @@ export function OnboardingPanel() {
         text: getErrorMessage(
           error,
           "Could not create player login. Please try again."
+        )
+      });
+    } finally {
+      setPendingForm(null);
+    }
+  }
+
+  async function handleResendInvitation(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+    setMessage("resendInvite", null);
+
+    if (!resendInviteForm.email.trim()) {
+      setMessage("resendInvite", {
+        type: "error",
+        text: "Enter the account email address."
+      });
+      return;
+    }
+
+    setPendingForm("resendInvite");
+
+    try {
+      const result = await postOnboarding({
+        action: "resend-invitation",
+        email: resendInviteForm.email
+      });
+
+      setResendInviteForm(defaultResendInviteForm);
+      setMessage("resendInvite", {
+        type: "success",
+        text: result.message
+      });
+    } catch (error) {
+      setMessage("resendInvite", {
+        type: "error",
+        text: getErrorMessage(
+          error,
+          "Could not resend the account invitation."
         )
       });
     } finally {
@@ -760,6 +811,51 @@ export function OnboardingPanel() {
             {playerLoginForm.teamId && selectedPlayerOptions.length === 0 ? (
               <InlineNotice message="No players exist for this team yet. Add roster players first." />
             ) : null}
+          </div>
+        </FormSection>
+      </form>
+
+      <form onSubmit={handleResendInvitation}>
+        <FormSection
+          eyebrow="Account Support"
+          title="Resend Account Invitation"
+          description="Send a fresh setup link when a coach, administrator, or player did not receive the original invitation or allowed it to expire."
+          footer={
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={pendingForm === "resendInvite"}
+                className={secondaryButtonClassName}
+              >
+                {pendingForm === "resendInvite"
+                  ? "Sending..."
+                  : "Resend Invitation"}
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-5">
+            {messages.resendInvite ? (
+              <Message type={messages.resendInvite.type}>
+                {messages.resendInvite.text}
+              </Message>
+            ) : null}
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextField
+                label="Account email"
+                type="email"
+                value={resendInviteForm.email}
+                onChange={(value) =>
+                  setResendInviteForm({
+                    email: value
+                  })
+                }
+                required
+              />
+
+              <InlineNotice message="Only accounts that have not completed setup can receive another invitation. Active users should use Forgot password." />
+            </div>
           </div>
         </FormSection>
       </form>

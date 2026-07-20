@@ -617,6 +617,68 @@ async function handleCreatePlayerLogin(
   );
 }
 
+async function handleResendInvitation(
+  supabase: AdminSupabaseClient,
+  body: JsonBody,
+  redirectTo: string
+) {
+  const email = normalizeEmail(readText(body, "email"));
+
+  if (!email || !isValidEmail(email)) {
+    return jsonResult("Enter a valid email address.");
+  }
+
+  const existingUser = await findAuthUserByEmail(supabase, email);
+
+  if (existingUser.error) {
+    return jsonResult(
+      `Could not check the existing Auth user: ${existingUser.error}`,
+      500
+    );
+  }
+
+  if (!existingUser.user) {
+    return jsonResult(
+      "No invited account was found for that email. Send an initial invitation first.",
+      404
+    );
+  }
+
+  if (existingUser.user.email_confirmed_at) {
+    return jsonResult(
+      "This account is already active. The user should use Forgot password instead.",
+      409
+    );
+  }
+
+  const metadata = existingUser.user.user_metadata ?? {};
+  const fullName =
+    typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
+
+  const { error } = await supabase.auth.admin.inviteUserByEmail(email, {
+    redirectTo,
+    ...(fullName
+      ? {
+          data: {
+            full_name: fullName
+          }
+        }
+      : {})
+  });
+
+  if (error) {
+    return jsonResult(
+      `Could not resend the invitation: ${error.message}`,
+      500
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    message: `A new account invitation was sent to ${email}.`
+  });
+}
+
 async function handleCreateSeason(
   supabase: AdminSupabaseClient,
   body: JsonBody
@@ -775,6 +837,12 @@ export async function POST(request: Request) {
       return handleAddPlayers(adminClient.supabase, body);
     case "create-player-login":
       return handleCreatePlayerLogin(adminClient.supabase, body, accountSetupRedirect);
+    case "resend-invitation":
+      return handleResendInvitation(
+        adminClient.supabase,
+        body,
+        accountSetupRedirect
+      );
     case "create-season":
       return handleCreateSeason(adminClient.supabase, body);
     default:
