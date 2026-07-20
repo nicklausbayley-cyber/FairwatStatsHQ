@@ -17,7 +17,8 @@ type ShellUser = {
 const publicAuthPaths = [
   "/login",
   "/forgot-password",
-  "/reset-password"
+  "/reset-password",
+  "/account-setup"
 ];
 
 export function SiteShellFrame({

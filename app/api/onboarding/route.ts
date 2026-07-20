@@ -133,6 +133,14 @@ function revalidateOnboardingViews() {
   revalidatePath("/players/[id]", "page");
 }
 
+function getAccountSetupRedirect(request: Request) {
+  const configuredAppUrl = process.env.APP_URL?.trim();
+  const requestOrigin = new URL(request.url).origin;
+  const appOrigin = configuredAppUrl || requestOrigin;
+
+  return new URL("/account-setup", appOrigin).toString();
+}
+
 async function readJsonBody(request: Request) {
   try {
     return readBodyObject(await request.json());
@@ -194,16 +202,16 @@ async function findAuthUserByEmail(
   return { user: null, error: null };
 }
 
-async function getOrCreateAuthUser({
+async function getOrInviteAuthUser({
   supabase,
   email,
-  temporaryPassword,
-  fullName
+  fullName,
+  redirectTo
 }: {
   supabase: AdminSupabaseClient;
   email: string;
-  temporaryPassword: string;
   fullName: string;
+  redirectTo: string;
 }): Promise<
   | { user: User; existed: boolean; error: null }
   | { user: null; existed: false; error: string }
@@ -219,33 +227,21 @@ async function getOrCreateAuthUser({
   }
 
   if (existingUser.user) {
-    return { user: existingUser.user, existed: true, error: null };
+    return {
+      user: existingUser.user,
+      existed: true,
+      error: null
+    };
   }
 
-  const { data, error } = await supabase.auth.admin.createUser({
-    email,
-    password: temporaryPassword,
-    email_confirm: true,
-    user_metadata: {
+  const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
+    redirectTo,
+    data: {
       full_name: fullName
     }
   });
 
   if (error) {
-    const lowerMessage = error.message.toLowerCase();
-
-    if (
-      lowerMessage.includes("already") ||
-      lowerMessage.includes("registered") ||
-      lowerMessage.includes("exists")
-    ) {
-      return {
-        user: null,
-        existed: false,
-        error: `An Auth user already exists for ${email}. Check Supabase Auth users, then try connecting the profile again.`
-      };
-    }
-
     return {
       user: null,
       existed: false,
@@ -257,11 +253,15 @@ async function getOrCreateAuthUser({
     return {
       user: null,
       existed: false,
-      error: "Supabase did not return the created Auth user."
+      error: "Supabase did not return the invited Auth user."
     };
   }
 
-  return { user: data.user, existed: false, error: null };
+  return {
+    user: data.user,
+    existed: false,
+    error: null
+  };
 }
 
 async function upsertProfile({
@@ -360,12 +360,12 @@ async function handleCreateTeam(
 
 async function handleCreateStaffLogin(
   supabase: AdminSupabaseClient,
-  body: JsonBody
+  body: JsonBody,
+  redirectTo: string
 ) {
   const teamId = readText(body, "teamId");
   const fullName = readText(body, "fullName");
   const email = normalizeEmail(readText(body, "email"));
-  const temporaryPassword = readText(body, "temporaryPassword");
   const role = readText(body, "role");
 
   if (!teamId) {
@@ -380,10 +380,6 @@ async function handleCreateStaffLogin(
     return jsonResult("Coach/admin email must be valid.");
   }
 
-  if (!temporaryPassword || temporaryPassword.length < 6) {
-    return jsonResult("Temporary password must be at least 6 characters.");
-  }
-
   if (!isStaffRole(role)) {
     return jsonResult("Role must be admin or coach.");
   }
@@ -394,11 +390,11 @@ async function handleCreateStaffLogin(
     return jsonResult(teamCheck.error);
   }
 
-  const authUser = await getOrCreateAuthUser({
+  const authUser = await getOrInviteAuthUser({
     supabase,
     email,
-    temporaryPassword,
-    fullName
+    fullName,
+    redirectTo
   });
 
   if (authUser.error || !authUser.user) {
@@ -424,8 +420,8 @@ async function handleCreateStaffLogin(
     {
       success: true,
       message: authUser.existed
-        ? `${fullName} was connected to ${teamCheck.team?.name}. The existing Auth user's password was not changed.`
-        : `${fullName} can now sign in as ${role}.`,
+        ? `${fullName} was connected to ${teamCheck.team?.name}. This email already has an account, so no new invitation was sent.`
+        : `Account invitation sent to ${email}. ${fullName} can create a password from the email.`,
       userId: authUser.user.id
     },
     { status: authUser.existed ? 200 : 201 }
@@ -535,12 +531,12 @@ async function handleAddPlayers(
 
 async function handleCreatePlayerLogin(
   supabase: AdminSupabaseClient,
-  body: JsonBody
+  body: JsonBody,
+  redirectTo: string
 ) {
   const teamId = readText(body, "teamId");
   const playerId = readText(body, "playerId");
   const email = normalizeEmail(readText(body, "playerEmail"));
-  const temporaryPassword = readText(body, "temporaryPassword");
 
   if (!teamId) {
     return jsonResult("Choose a team for this player login.");
@@ -552,10 +548,6 @@ async function handleCreatePlayerLogin(
 
   if (!email || !isValidEmail(email)) {
     return jsonResult("Player email must be valid.");
-  }
-
-  if (!temporaryPassword || temporaryPassword.length < 6) {
-    return jsonResult("Temporary password must be at least 6 characters.");
   }
 
   const { data: player, error: playerError } = await supabase
@@ -574,11 +566,11 @@ async function handleCreatePlayerLogin(
   }
 
   const fullName = `${player.first_name} ${player.last_name}`;
-  const authUser = await getOrCreateAuthUser({
+  const authUser = await getOrInviteAuthUser({
     supabase,
     email,
-    temporaryPassword,
-    fullName
+    fullName,
+    redirectTo
   });
 
   if (authUser.error || !authUser.user) {
@@ -617,8 +609,8 @@ async function handleCreatePlayerLogin(
     {
       success: true,
       message: authUser.existed
-        ? `${fullName} was connected to the existing Auth user. The password was not changed.`
-        : `${fullName} can now sign in as a player.`,
+        ? `${fullName} was connected to the existing Auth user. This email already has an account, so no new invitation was sent.`
+        : `Account invitation sent to ${email}. ${fullName} can create a password from the email.`,
       userId: authUser.user.id
     },
     { status: authUser.existed ? 200 : 201 }
@@ -767,6 +759,7 @@ export async function POST(request: Request) {
   }
 
   const action = readText(body, "action");
+  const accountSetupRedirect = getAccountSetupRedirect(request);
   const adminClient = getAdminClientForApi();
 
   if (!adminClient.supabase) {
@@ -777,11 +770,11 @@ export async function POST(request: Request) {
     case "create-team":
       return handleCreateTeam(adminClient.supabase, body);
     case "create-staff-login":
-      return handleCreateStaffLogin(adminClient.supabase, body);
+      return handleCreateStaffLogin(adminClient.supabase, body, accountSetupRedirect);
     case "add-players":
       return handleAddPlayers(adminClient.supabase, body);
     case "create-player-login":
-      return handleCreatePlayerLogin(adminClient.supabase, body);
+      return handleCreatePlayerLogin(adminClient.supabase, body, accountSetupRedirect);
     case "create-season":
       return handleCreateSeason(adminClient.supabase, body);
     default:

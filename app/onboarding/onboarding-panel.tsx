@@ -76,7 +76,6 @@ const defaultStaffForm = {
   teamId: "",
   fullName: "",
   email: "",
-  temporaryPassword: "",
   role: "admin" as "admin" | "coach"
 };
 
@@ -547,8 +546,8 @@ export function OnboardingPanel() {
       <form onSubmit={handleCreateStaffLogin}>
         <FormSection
           eyebrow="Step 2"
-          title="Create Coach/Admin Login"
-          description="Create or connect a Supabase Auth user, then upsert the team profile that gives the account admin or coach access."
+          title="Send Coach/Admin Invitation"
+          description="Create or connect the team profile and email the coach or administrator a secure link to choose their password."
           footer={
             <div className="flex justify-end">
               <button
@@ -556,7 +555,7 @@ export function OnboardingPanel() {
                 disabled={!hasTeams || pendingForm === "staff"}
                 className={primaryButtonClassName}
               >
-                {pendingForm === "staff" ? "Creating..." : "Create Login"}
+                {pendingForm === "staff" ? "Sending..." : "Send Invitation"}
               </button>
             </div>
           }
@@ -593,18 +592,6 @@ export function OnboardingPanel() {
                 value={staffForm.email}
                 onChange={(value) =>
                   setStaffForm((current) => ({ ...current, email: value }))
-                }
-                required
-              />
-              <TextField
-                label="Temporary password"
-                type="password"
-                value={staffForm.temporaryPassword}
-                onChange={(value) =>
-                  setStaffForm((current) => ({
-                    ...current,
-                    temporaryPassword: value
-                  }))
                 }
                 required
               />
@@ -688,8 +675,8 @@ export function OnboardingPanel() {
       <form onSubmit={handleCreatePlayerLogin}>
         <FormSection
           eyebrow="Step 4"
-          title="Optional Player Login Setup"
-          description="Create a player Auth account and connect it to one roster record when the player is ready to enter scores."
+          title="Optional Player Invitation"
+          description="Connect the roster record to an Auth account and email the player a secure link to choose their password."
           footer={
             <div className="flex justify-end">
               <button
@@ -702,8 +689,8 @@ export function OnboardingPanel() {
                 className={secondaryButtonClassName}
               >
                 {pendingForm === "playerLogin"
-                  ? "Connecting..."
-                  : "Create Player Login"}
+                  ? "Sending..."
+                  : "Send Player Invitation"}
               </button>
             </div>
           }
@@ -764,18 +751,6 @@ export function OnboardingPanel() {
                   setPlayerLoginForm((current) => ({
                     ...current,
                     playerEmail: value
-                  }))
-                }
-                required
-              />
-              <TextField
-                label="Temporary password"
-                type="password"
-                value={playerLoginForm.temporaryPassword}
-                onChange={(value) =>
-                  setPlayerLoginForm((current) => ({
-                    ...current,
-                    temporaryPassword: value
                   }))
                 }
                 required
