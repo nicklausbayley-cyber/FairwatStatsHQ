@@ -1,14 +1,15 @@
 import type { ReactNode } from "react";
-import { SiteHeader } from "./site-header";
 import { getCurrentTeam } from "../../lib/auth/get-current-team";
 import { getPlatformAdminStatus } from "../../lib/auth/platform-admin";
 import { getTeamBrandingFromTeam } from "../../lib/team/branding";
+import { SiteShellFrame } from "./site-shell-frame";
 
 export async function SiteShell({ children }: { children: ReactNode }) {
   const [currentTeam, platformAdmin] = await Promise.all([
     getCurrentTeam(),
     getPlatformAdminStatus()
   ]);
+
   let playerProfileHref: string | null = null;
 
   if (currentTeam.data?.role === "player") {
@@ -25,10 +26,14 @@ export async function SiteShell({ children }: { children: ReactNode }) {
   const branding = currentTeam.data
     ? getTeamBrandingFromTeam(currentTeam.data.team)
     : null;
+
   const user = currentTeam.data
     ? {
         name: currentTeam.data.profile.full_name,
-        email: currentTeam.data.profile.email || currentTeam.data.user.email || "",
+        email:
+          currentTeam.data.profile.email ||
+          currentTeam.data.user.email ||
+          "",
         role: currentTeam.data.role,
         playerProfileHref,
         isPlatformAdmin: platformAdmin.data !== null
@@ -41,18 +46,11 @@ export async function SiteShell({ children }: { children: ReactNode }) {
           playerProfileHref: null,
           isPlatformAdmin: true
         }
-    : null;
-
-  if (!currentTeam.data && !platformAdmin.data) {
-    return <>{children}</>;
-  }
+      : null;
 
   return (
-    <div className="min-h-screen">
-      <SiteHeader branding={branding} user={user} />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-10">
-        {children}
-      </main>
-    </div>
+    <SiteShellFrame branding={branding} user={user}>
+      {children}
+    </SiteShellFrame>
   );
 }

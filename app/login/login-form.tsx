@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { createClient } from "../../lib/supabase/client";
@@ -238,6 +239,15 @@ export function LoginForm() {
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
                   />
                 </label>
+
+                <div className="flex justify-end">
+                  <Link
+                    href="/forgot-password"
+                    className="text-sm font-semibold text-emerald-700 transition hover:text-emerald-800"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
 
                 <button
                   type="submit"
