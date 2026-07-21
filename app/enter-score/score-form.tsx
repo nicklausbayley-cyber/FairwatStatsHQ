@@ -714,6 +714,34 @@ function HoleByHoleSection({
           Enter the score and statistics directly into the scorecard. On
           smaller screens, scroll horizontally to move across the holes.
         </p>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <ScoreIndicatorLegendItem
+            indicator="eagle-or-better"
+            display="-2"
+            label="Eagle or better"
+          />
+          <ScoreIndicatorLegendItem
+            indicator="birdie"
+            display="-1"
+            label="Birdie"
+          />
+          <ScoreIndicatorLegendItem
+            indicator="par"
+            display="E"
+            label="Par"
+          />
+          <ScoreIndicatorLegendItem
+            indicator="bogey"
+            display="+1"
+            label="Bogey"
+          />
+          <ScoreIndicatorLegendItem
+            indicator="double-bogey-or-worse"
+            display="+2"
+            label="Double bogey or worse"
+          />
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -949,6 +977,7 @@ function ScorecardNine({
                     min={1}
                     required
                     emphasized
+                    scorePar={hole.par}
                     ariaLabel={`Hole ${hole.holeNumber} score`}
                   />
                 </td>
@@ -1168,12 +1197,103 @@ function ScorecardTotalCell({
   );
 }
 
+type ScoreIndicator =
+  | "eagle-or-better"
+  | "birdie"
+  | "par"
+  | "bogey"
+  | "double-bogey-or-worse"
+  | null;
+
+function getScoreIndicator(
+  value: string,
+  par?: number
+): ScoreIndicator {
+  if (value.trim() === "" || par === undefined) {
+    return null;
+  }
+
+  const score = Number(value);
+
+  if (!Number.isFinite(score)) {
+    return null;
+  }
+
+  const difference = score - par;
+
+  if (difference <= -2) {
+    return "eagle-or-better";
+  }
+
+  if (difference === -1) {
+    return "birdie";
+  }
+
+  if (difference === 0) {
+    return "par";
+  }
+
+  if (difference === 1) {
+    return "bogey";
+  }
+
+  return "double-bogey-or-worse";
+}
+
+function getScoreIndicatorClassName(
+  indicator: ScoreIndicator
+) {
+  switch (indicator) {
+    case "eagle-or-better":
+      return "rounded-full border-2 border-red-700 bg-red-50 text-red-950 ring-2 ring-red-700 ring-offset-2";
+
+    case "birdie":
+      return "rounded-full border-2 border-red-600 bg-red-50 text-red-950";
+
+    case "bogey":
+      return "rounded-sm border-2 border-blue-700 bg-blue-50 text-blue-950";
+
+    case "double-bogey-or-worse":
+      return "rounded-sm border-4 border-double border-blue-800 bg-blue-50 text-blue-950";
+
+    case "par":
+    case null:
+    default:
+      return "rounded-md border border-green-400 bg-green-50 text-green-950";
+  }
+}
+
+function getScoreIndicatorLabel(
+  indicator: ScoreIndicator
+) {
+  switch (indicator) {
+    case "eagle-or-better":
+      return "Eagle or better";
+
+    case "birdie":
+      return "Birdie";
+
+    case "par":
+      return "Par";
+
+    case "bogey":
+      return "Bogey";
+
+    case "double-bogey-or-worse":
+      return "Double bogey or worse";
+
+    default:
+      return undefined;
+  }
+}
+
 function ScorecardNumberInput({
   value,
   onChange,
   min,
   required = false,
   emphasized = false,
+  scorePar,
   ariaLabel
 }: {
   value: string;
@@ -1181,8 +1301,15 @@ function ScorecardNumberInput({
   min?: number;
   required?: boolean;
   emphasized?: boolean;
+  scorePar?: number;
   ariaLabel: string;
 }) {
+  const indicator = emphasized
+    ? getScoreIndicator(value, scorePar)
+    : null;
+
+  const indicatorLabel = getScoreIndicatorLabel(indicator);
+
   return (
     <input
       type="number"
@@ -1193,12 +1320,42 @@ function ScorecardNumberInput({
       required={required}
       inputMode="numeric"
       aria-label={ariaLabel}
+      title={indicatorLabel}
       className={cn(
-        "mx-auto h-11 w-14 rounded-md border border-slate-300 bg-white px-1 text-center text-base font-semibold text-slate-950 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100",
-        emphasized &&
-          "border-green-400 bg-green-50 text-lg font-bold text-green-950"
+        "mx-auto px-1 text-center outline-none transition focus:ring-2 focus:ring-green-200 focus:ring-offset-1",
+        emphasized
+          ? cn(
+              "h-12 w-12 text-lg font-bold",
+              getScoreIndicatorClassName(indicator)
+            )
+          : "h-11 w-14 rounded-md border border-slate-300 bg-white text-base font-semibold text-slate-950"
       )}
     />
+  );
+}
+
+function ScoreIndicatorLegendItem({
+  indicator,
+  display,
+  label
+}: {
+  indicator: Exclude<ScoreIndicator, null>;
+  display: string;
+  label: string;
+}) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+      <span
+        className={cn(
+          "flex h-7 w-7 items-center justify-center text-[10px] font-bold",
+          getScoreIndicatorClassName(indicator)
+        )}
+        aria-hidden="true"
+      >
+        {display}
+      </span>
+      <span>{label}</span>
+    </div>
   );
 }
 
