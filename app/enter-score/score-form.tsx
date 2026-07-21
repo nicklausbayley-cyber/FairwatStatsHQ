@@ -671,7 +671,10 @@ function HoleByHoleSection({
   courseSelected: boolean;
   onUpdateHole: (
     index: number,
-    field: keyof Pick<HoleEntry, "score" | "putts" | "penalty" | "gir" | "fir">,
+    field: keyof Pick<
+      HoleEntry,
+      "score" | "putts" | "penalty" | "gir" | "fir"
+    >,
     value: string | boolean | null
   ) => void;
 }) {
@@ -682,9 +685,7 @@ function HoleByHoleSection({
   }
 
   if (isLoading) {
-    return (
-      <EmptyState message="Loading course holes..." />
-    );
+    return <EmptyState message="Loading course holes..." />;
   }
 
   if (holeEntries.length === 0) {
@@ -693,90 +694,586 @@ function HoleByHoleSection({
     );
   }
 
+  const completedHoles = holeEntries.filter(
+    (hole) => hole.score.trim() !== ""
+  ).length;
+
+  const frontNine = holeEntries.slice(0, 9);
+  const backNine = holeEntries.slice(9);
+
   return (
-    <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <TotalCard label="Score" value={holeTotals.score.toString()} />
-        <TotalCard label="Par" value={holeTotals.par.toString()} />
-        <TotalCard label="Putts" value={holeTotals.putts?.toString() ?? "No data"} />
-        <TotalCard label="Penalties" value={holeTotals.penalties.toString()} />
-        <TotalCard label="Fairways" value={`${holeTotals.fairwaysHit} / ${holeTotals.fairwaysPossible}`} />
-        <TotalCard label="GIR" value={`${holeTotals.greensInRegulation} / ${holeTotals.girPossible}`} />
-        <TotalCard label="Three-putts" value={holeTotals.threePutts.toString()} />
-        <TotalCard label="Holes" value={holeTotals.holes.toString()} />
+    <div className="space-y-6">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
+          Scorecard Entry
+        </p>
+        <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
+          Record the round hole by hole
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          Enter the score and statistics directly into the scorecard. On
+          smaller screens, scroll horizontally to move across the holes.
+        </p>
       </div>
 
-      <div className="space-y-3">
-        {holeEntries.map((hole, index) => (
-          <div
-            key={hole.holeNumber}
-            className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50/60 p-4 lg:grid-cols-[0.7fr_0.6fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr_0.9fr] lg:items-end"
-          >
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Hole</p>
-              <p className="mt-1 text-xl font-bold text-gray-950">{hole.holeNumber}</p>
-              <p className="mt-1 text-xs text-gray-500">
-                Par {hole.par}{hole.handicap ? ` | HCP ${hole.handicap}` : ""}
-              </p>
-            </div>
-            <div className="text-sm text-gray-600">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Yards</p>
-              <p className="mt-2">{hole.yardage ?? "Not set"}</p>
-            </div>
-            <NumberField
-              label="Score"
-              value={hole.score}
-              onChange={(value) => onUpdateHole(index, "score", value)}
-              min={1}
-              required
-            />
-            <NumberField
-              label="Putts"
-              value={hole.putts}
-              onChange={(value) => onUpdateHole(index, "putts", value)}
-              min={0}
-            />
-            <div>
-              <p className="text-sm font-semibold text-slate-700">FIR</p>
-              {hole.par === 3 ? (
-                <p className="mt-2 rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-500">
-                  N/A
-                </p>
-              ) : (
-                <label className="mt-2 flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={hole.fir === true}
-                    onChange={(event) => onUpdateHole(index, "fir", event.target.checked)}
-                    className="h-4 w-4 accent-green-800"
-                  />
-                  Hit fairway
-                </label>
-              )}
-            </div>
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-slate-700">GIR</span>
-              <span className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={hole.gir}
-                  onChange={(event) => onUpdateHole(index, "gir", event.target.checked)}
-                  className="h-4 w-4 accent-green-800"
-                />
-                Green hit
-              </span>
-            </label>
-            <NumberField
-              label="Penalty"
-              value={hole.penalty}
-              onChange={(value) => onUpdateHole(index, "penalty", value)}
-              min={0}
-            />
-          </div>
-        ))}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <TotalCard
+          label="Score"
+          value={
+            completedHoles > 0
+              ? holeTotals.score.toString()
+              : "—"
+          }
+        />
+        <TotalCard
+          label="To Par"
+          value={formatScoreToPar(holeEntries)}
+        />
+        <TotalCard
+          label="Putts"
+          value={holeTotals.putts?.toString() ?? "—"}
+        />
+        <TotalCard
+          label="Penalties"
+          value={holeTotals.penalties.toString()}
+        />
+        <TotalCard
+          label="Fairways"
+          value={`${holeTotals.fairwaysHit} / ${holeTotals.fairwaysPossible}`}
+        />
+        <TotalCard
+          label="GIR"
+          value={`${holeTotals.greensInRegulation} / ${holeTotals.girPossible}`}
+        />
+        <TotalCard
+          label="Three-putts"
+          value={holeTotals.threePutts.toString()}
+        />
+        <TotalCard
+          label="Holes Entered"
+          value={`${completedHoles} / ${holeTotals.holes}`}
+        />
       </div>
+
+      {holeEntries.length === 9 ? (
+        <ScorecardNine
+          title="Nine-Hole Scorecard"
+          subtotalLabel="TOTAL"
+          holeEntries={frontNine}
+          startIndex={0}
+          onUpdateHole={onUpdateHole}
+        />
+      ) : (
+        <>
+          <ScorecardNine
+            title="Front Nine"
+            subtotalLabel="OUT"
+            holeEntries={frontNine}
+            startIndex={0}
+            onUpdateHole={onUpdateHole}
+          />
+
+          <ScorecardNine
+            title="Back Nine"
+            subtotalLabel="IN"
+            holeEntries={backNine}
+            startIndex={9}
+            onUpdateHole={onUpdateHole}
+          />
+
+          <div className="rounded-xl border border-green-800 bg-green-900 px-5 py-4 text-white shadow-sm">
+            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
+              <ScorecardRoundTotal
+                label="Total Score"
+                value={
+                  completedHoles > 0
+                    ? holeTotals.score.toString()
+                    : "—"
+                }
+              />
+              <ScorecardRoundTotal
+                label="Total Par"
+                value={holeTotals.par.toString()}
+              />
+              <ScorecardRoundTotal
+                label="To Par"
+                value={formatScoreToPar(holeEntries)}
+              />
+              <ScorecardRoundTotal
+                label="Putts"
+                value={holeTotals.putts?.toString() ?? "—"}
+              />
+              <ScorecardRoundTotal
+                label="FIR"
+                value={`${holeTotals.fairwaysHit}/${holeTotals.fairwaysPossible}`}
+              />
+              <ScorecardRoundTotal
+                label="GIR"
+                value={`${holeTotals.greensInRegulation}/${holeTotals.girPossible}`}
+              />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
+}
+
+function ScorecardNine({
+  title,
+  subtotalLabel,
+  holeEntries,
+  startIndex,
+  onUpdateHole
+}: {
+  title: string;
+  subtotalLabel: string;
+  holeEntries: HoleEntry[];
+  startIndex: number;
+  onUpdateHole: (
+    index: number,
+    field: keyof Pick<
+      HoleEntry,
+      "score" | "putts" | "penalty" | "gir" | "fir"
+    >,
+    value: string | boolean | null
+  ) => void;
+}) {
+  const totals = calculateHoleTotals(holeEntries);
+
+  const hasScores = holeEntries.some(
+    (hole) => hole.score.trim() !== ""
+  );
+
+  const hasCompleteYardage = holeEntries.every(
+    (hole) => hole.yardage !== null
+  );
+
+  const totalYardage = holeEntries.reduce(
+    (total, hole) => total + (hole.yardage ?? 0),
+    0
+  );
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
+      <div className="flex flex-col gap-1 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-slate-950">
+            {title}
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Holes {holeEntries[0]?.holeNumber}–
+            {holeEntries[holeEntries.length - 1]?.holeNumber}
+          </p>
+        </div>
+
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Tap FIR or GIR to mark it as hit
+        </p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[940px] border-collapse text-center text-sm">
+          <thead>
+            <tr className="bg-green-900 text-white">
+              <th className="sticky left-0 z-20 min-w-28 border-r border-green-700 bg-green-900 px-3 py-3 text-left text-xs font-bold uppercase tracking-wide">
+                Hole
+              </th>
+
+              {holeEntries.map((hole) => (
+                <th
+                  key={hole.holeNumber}
+                  className="min-w-20 border-r border-green-700 px-2 py-3 text-base font-bold"
+                >
+                  {hole.holeNumber}
+                </th>
+              ))}
+
+              <th className="min-w-24 bg-green-950 px-3 py-3 text-sm font-bold">
+                {subtotalLabel}
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <ScorecardStaticRow
+              label="Yards"
+              values={holeEntries.map((hole) =>
+                hole.yardage?.toString() ?? "—"
+              )}
+              total={
+                hasCompleteYardage
+                  ? totalYardage.toString()
+                  : "—"
+              }
+            />
+
+            <ScorecardStaticRow
+              label="Handicap"
+              values={holeEntries.map((hole) =>
+                hole.handicap?.toString() ?? "—"
+              )}
+              total="—"
+              muted
+            />
+
+            <ScorecardStaticRow
+              label="Par"
+              values={holeEntries.map((hole) =>
+                hole.par.toString()
+              )}
+              total={totals.par.toString()}
+              emphasized
+            />
+
+            <tr className="border-t border-slate-200 bg-green-50/60">
+              <ScorecardRowLabel
+                label="Score"
+                emphasized
+              />
+
+              {holeEntries.map((hole, localIndex) => (
+                <td
+                  key={hole.holeNumber}
+                  className="border-r border-slate-200 px-2 py-2"
+                >
+                  <ScorecardNumberInput
+                    value={hole.score}
+                    onChange={(value) =>
+                      onUpdateHole(
+                        startIndex + localIndex,
+                        "score",
+                        value
+                      )
+                    }
+                    min={1}
+                    required
+                    emphasized
+                    ariaLabel={`Hole ${hole.holeNumber} score`}
+                  />
+                </td>
+              ))}
+
+              <ScorecardTotalCell
+                value={hasScores ? totals.score.toString() : "—"}
+                emphasized
+              />
+            </tr>
+
+            <tr className="border-t border-slate-200">
+              <ScorecardRowLabel label="Putts" />
+
+              {holeEntries.map((hole, localIndex) => (
+                <td
+                  key={hole.holeNumber}
+                  className="border-r border-slate-200 px-2 py-2"
+                >
+                  <ScorecardNumberInput
+                    value={hole.putts}
+                    onChange={(value) =>
+                      onUpdateHole(
+                        startIndex + localIndex,
+                        "putts",
+                        value
+                      )
+                    }
+                    min={0}
+                    ariaLabel={`Hole ${hole.holeNumber} putts`}
+                  />
+                </td>
+              ))}
+
+              <ScorecardTotalCell
+                value={totals.putts?.toString() ?? "—"}
+              />
+            </tr>
+
+            <tr className="border-t border-slate-200 bg-slate-50/50">
+              <ScorecardRowLabel label="FIR" />
+
+              {holeEntries.map((hole, localIndex) => (
+                <td
+                  key={hole.holeNumber}
+                  className="border-r border-slate-200 px-2 py-2"
+                >
+                  {hole.par === 3 ? (
+                    <span className="text-lg font-semibold text-slate-300">
+                      —
+                    </span>
+                  ) : (
+                    <ScorecardToggle
+                      checked={hole.fir === true}
+                      onChange={(checked) =>
+                        onUpdateHole(
+                          startIndex + localIndex,
+                          "fir",
+                          checked
+                        )
+                      }
+                      ariaLabel={`Hole ${hole.holeNumber} fairway hit`}
+                    />
+                  )}
+                </td>
+              ))}
+
+              <ScorecardTotalCell
+                value={`${totals.fairwaysHit}/${totals.fairwaysPossible}`}
+              />
+            </tr>
+
+            <tr className="border-t border-slate-200">
+              <ScorecardRowLabel label="GIR" />
+
+              {holeEntries.map((hole, localIndex) => (
+                <td
+                  key={hole.holeNumber}
+                  className="border-r border-slate-200 px-2 py-2"
+                >
+                  <ScorecardToggle
+                    checked={hole.gir}
+                    onChange={(checked) =>
+                      onUpdateHole(
+                        startIndex + localIndex,
+                        "gir",
+                        checked
+                      )
+                    }
+                    ariaLabel={`Hole ${hole.holeNumber} green in regulation`}
+                  />
+                </td>
+              ))}
+
+              <ScorecardTotalCell
+                value={`${totals.greensInRegulation}/${totals.girPossible}`}
+              />
+            </tr>
+
+            <tr className="border-t border-slate-200 bg-slate-50/50">
+              <ScorecardRowLabel label="Penalty" />
+
+              {holeEntries.map((hole, localIndex) => (
+                <td
+                  key={hole.holeNumber}
+                  className="border-r border-slate-200 px-2 py-2"
+                >
+                  <ScorecardNumberInput
+                    value={hole.penalty}
+                    onChange={(value) =>
+                      onUpdateHole(
+                        startIndex + localIndex,
+                        "penalty",
+                        value
+                      )
+                    }
+                    min={0}
+                    ariaLabel={`Hole ${hole.holeNumber} penalty strokes`}
+                  />
+                </td>
+              ))}
+
+              <ScorecardTotalCell
+                value={totals.penalties.toString()}
+              />
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ScorecardStaticRow({
+  label,
+  values,
+  total,
+  muted = false,
+  emphasized = false
+}: {
+  label: string;
+  values: string[];
+  total: string;
+  muted?: boolean;
+  emphasized?: boolean;
+}) {
+  return (
+    <tr
+      className={cn(
+        "border-t border-slate-200",
+        muted && "bg-slate-50/50",
+        emphasized && "bg-green-50/60"
+      )}
+    >
+      <ScorecardRowLabel
+        label={label}
+        emphasized={emphasized}
+      />
+
+      {values.map((value, index) => (
+        <td
+          key={`${label}-${index}`}
+          className={cn(
+            "border-r border-slate-200 px-2 py-3 font-medium",
+            muted ? "text-slate-500" : "text-slate-700",
+            emphasized && "font-bold text-green-950"
+          )}
+        >
+          {value}
+        </td>
+      ))}
+
+      <ScorecardTotalCell
+        value={total}
+        emphasized={emphasized}
+      />
+    </tr>
+  );
+}
+
+function ScorecardRowLabel({
+  label,
+  emphasized = false
+}: {
+  label: string;
+  emphasized?: boolean;
+}) {
+  return (
+    <th
+      scope="row"
+      className={cn(
+        "sticky left-0 z-10 border-r border-slate-200 bg-slate-50 px-3 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600",
+        emphasized && "bg-green-100 text-green-950"
+      )}
+    >
+      {label}
+    </th>
+  );
+}
+
+function ScorecardTotalCell({
+  value,
+  emphasized = false
+}: {
+  value: string;
+  emphasized?: boolean;
+}) {
+  return (
+    <td
+      className={cn(
+        "bg-slate-100 px-3 py-3 font-bold text-slate-900",
+        emphasized && "bg-green-200 text-lg text-green-950"
+      )}
+    >
+      {value}
+    </td>
+  );
+}
+
+function ScorecardNumberInput({
+  value,
+  onChange,
+  min,
+  required = false,
+  emphasized = false,
+  ariaLabel
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  min?: number;
+  required?: boolean;
+  emphasized?: boolean;
+  ariaLabel: string;
+}) {
+  return (
+    <input
+      type="number"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onFocus={(event) => event.currentTarget.select()}
+      min={min}
+      required={required}
+      inputMode="numeric"
+      aria-label={ariaLabel}
+      className={cn(
+        "mx-auto h-11 w-14 rounded-md border border-slate-300 bg-white px-1 text-center text-base font-semibold text-slate-950 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-100",
+        emphasized &&
+          "border-green-400 bg-green-50 text-lg font-bold text-green-950"
+      )}
+    />
+  );
+}
+
+function ScorecardToggle({
+  checked,
+  onChange,
+  ariaLabel
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      aria-pressed={checked}
+      aria-label={ariaLabel}
+      className={cn(
+        "mx-auto flex h-10 w-10 items-center justify-center rounded-md border text-lg font-bold transition focus:outline-none focus:ring-2 focus:ring-green-200 focus:ring-offset-1",
+        checked
+          ? "border-green-700 bg-green-800 text-white shadow-sm"
+          : "border-slate-300 bg-white text-slate-300 hover:border-green-400 hover:bg-green-50"
+      )}
+    >
+      {checked ? "✓" : ""}
+    </button>
+  );
+}
+
+function ScorecardRoundTotal({
+  label,
+  value
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-green-200">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-bold">{value}</p>
+    </div>
+  );
+}
+
+function formatScoreToPar(holeEntries: HoleEntry[]) {
+  const completedHoles = holeEntries.filter(
+    (hole) => hole.score.trim() !== ""
+  );
+
+  if (completedHoles.length === 0) {
+    return "—";
+  }
+
+  const score = completedHoles.reduce(
+    (total, hole) => total + (Number(hole.score) || 0),
+    0
+  );
+
+  const par = completedHoles.reduce(
+    (total, hole) => total + hole.par,
+    0
+  );
+
+  const difference = score - par;
+
+  if (difference === 0) {
+    return "E";
+  }
+
+  return difference > 0
+    ? `+${difference}`
+    : difference.toString();
 }
 
 function SummaryEntrySection({
