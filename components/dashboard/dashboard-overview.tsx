@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type {
   DashboardData,
   DashboardRound,
@@ -9,6 +10,7 @@ import {
   PageHeader,
   StatCard,
   cn,
+  secondaryButtonClassName,
   tableHeaderClassName,
   tableRowClassName,
   tableShellClassName
@@ -112,7 +114,7 @@ function buildMetricCards(summary: DashboardSummary): MetricCard[] {
 
 function RecentRoundRow({ round }: { round: DashboardRound }) {
   return (
-    <div className={cn(tableRowClassName, "lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr] lg:items-center")}>
+    <div className={cn(tableRowClassName, "lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr_0.9fr] lg:items-center")}>
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Player
@@ -170,6 +172,18 @@ function RecentRoundRow({ round }: { round: DashboardRound }) {
           Three-putts
         </p>
         <p className="text-gray-700">{round.threePutts ?? "Not set"}</p>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Actions
+        </p>
+        <Link
+          href={`/rounds/${round.id}`}
+          className={`${secondaryButtonClassName} px-3 py-1.5 text-xs`}
+        >
+          View Details
+        </Link>
       </div>
     </div>
   );
@@ -238,7 +252,7 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
         />
       ) : (
         <div className={tableShellClassName}>
-          <div className={cn(tableHeaderClassName, "lg:grid lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr]")}>
+          <div className={cn(tableHeaderClassName, "lg:grid lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr_0.9fr]")}>
             <span>Player</span>
             <span>Event</span>
             <span>Played</span>
@@ -248,6 +262,7 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
             <span>GIR</span>
             <span>Pen.</span>
             <span>3-putts</span>
+            <span>Actions</span>
           </div>
 
           <div className="divide-y divide-gray-100">

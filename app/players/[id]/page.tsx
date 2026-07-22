@@ -396,7 +396,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         />
       ) : (
         <div className={tableShellClassName}>
-          <div className={cn(tableHeaderClassName, "xl:grid xl:grid-cols-[1fr_1.4fr_0.7fr_0.7fr_0.8fr_1fr_0.8fr_0.8fr_0.8fr_1.4fr]")}>
+          <div className={cn(tableHeaderClassName, "xl:grid xl:grid-cols-[1fr_1.4fr_0.7fr_0.7fr_0.8fr_1fr_0.8fr_0.8fr_0.8fr_1.4fr_0.9fr]")}>
             <span>Date</span>
             <span>Event</span>
             <span>Holes</span>
@@ -407,6 +407,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
             <span>Penalties</span>
             <span>3-putts</span>
             <span>Notes</span>
+            <span>Actions</span>
           </div>
 
           <div className="divide-y divide-gray-100">
@@ -479,7 +480,7 @@ function InfoItem({
 
 function RoundRowView({ round }: { round: RoundWithEvent }) {
   return (
-    <div className={cn(tableRowClassName, "xl:grid-cols-[1fr_1.4fr_0.7fr_0.7fr_0.8fr_1fr_0.8fr_0.8fr_0.8fr_1.4fr] xl:items-center")}>
+    <div className={cn(tableRowClassName, "xl:grid-cols-[1fr_1.4fr_0.7fr_0.7fr_0.8fr_1fr_0.8fr_0.8fr_0.8fr_1.4fr_0.9fr] xl:items-center")}>
       <Cell label="Date" value={formatDate(round.played_on)} strong />
       <Cell label="Event" value={round.eventName ?? "No event"} />
       <Cell label="Holes" value={round.holes.toString()} />
@@ -496,6 +497,18 @@ function RoundRowView({ round }: { round: RoundWithEvent }) {
       <Cell label="Penalties" value={round.penalties?.toString() ?? "No data"} />
       <Cell label="Three-putts" value={round.three_putts?.toString() ?? "No data"} />
       <Cell label="Notes" value={round.notes || "No notes"} />
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
+          Actions
+        </p>
+        <Link
+          href={`/rounds/${round.id}`}
+          className={`${secondaryButtonClassName} px-3 py-1.5 text-xs`}
+        >
+          View Details
+        </Link>
+      </div>
     </div>
   );
 }
