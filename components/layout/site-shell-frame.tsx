@@ -41,9 +41,9 @@ export function SiteShellFrame({
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen print:min-h-0">
       <SiteHeader branding={branding} user={user} />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-10">
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-10 print:max-w-none print:px-0 print:py-0">
         {children}
       </main>
     </div>

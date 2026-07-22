@@ -103,7 +103,7 @@ export function SiteHeader({
 
   return (
     <header
-      className="sticky top-0 z-30 border-b bg-white/95 shadow-sm shadow-slate-900/5 backdrop-blur"
+      className="sticky top-0 z-30 border-b bg-white/95 shadow-sm shadow-slate-900/5 backdrop-blur print:hidden"
       style={{ borderColor: `${primaryColor}22` }}
     >
       <div

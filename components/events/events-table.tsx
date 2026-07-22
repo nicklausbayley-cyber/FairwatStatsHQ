@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import type { EventListRow } from "../../lib/events/events";
@@ -182,7 +183,7 @@ export function EventsTable({ events }: EventsTableProps) {
       ) : null}
 
       <div className={tableShellClassName}>
-        <div className={cn(tableHeaderClassName, "xl:grid xl:grid-cols-[1.1fr_0.85fr_0.9fr_1.1fr_1fr_1.1fr]")}>
+        <div className={cn(tableHeaderClassName, "xl:grid xl:grid-cols-[1.1fr_0.85fr_0.9fr_1.1fr_1fr_1.4fr]")}>
           <span>Name</span>
           <span>Type</span>
           <span>Date</span>
@@ -197,7 +198,7 @@ export function EventsTable({ events }: EventsTableProps) {
 
             return (
               <div key={event.id} className="border-b border-gray-100 last:border-b-0">
-                <div className={cn(tableRowClassName, "xl:grid-cols-[1.1fr_0.85fr_0.9fr_1.1fr_1fr_1.1fr] xl:items-center")}>
+                <div className={cn(tableRowClassName, "xl:grid-cols-[1.1fr_0.85fr_0.9fr_1.1fr_1fr_1.4fr] xl:items-center")}>
                   <Cell label="Name" value={event.name} strong />
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
@@ -215,6 +216,16 @@ export function EventsTable({ events }: EventsTableProps) {
                       Actions
                     </p>
                     <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/events/${event.id}/report`}
+                        className={cn(
+                          secondaryButtonClassName,
+                          "px-3 py-1.5 text-xs"
+                        )}
+                      >
+                        View Report
+                      </Link>
+
                       <button
                         type="button"
                         onClick={() => {
