@@ -13,6 +13,7 @@ import {
   PageHeader,
   StatCard,
   cn,
+  primaryButtonClassName,
   secondaryButtonClassName,
   tableHeaderClassName,
   tableRowClassName,
@@ -380,6 +381,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   return (
     <section className="space-y-6">
       <PlayerProfileHeader
+        playerId={profile.player.id}
         playerName={playerName}
         activeSeasonName={profile.activeSeasonName}
         showRosterLink={showLineupControls}
@@ -512,10 +514,12 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
 }
 
 function PlayerProfileHeader({
+  playerId,
   playerName,
   activeSeasonName,
   showRosterLink
 }: {
+  playerId?: string;
   playerName?: string;
   activeSeasonName?: string | null;
   showRosterLink: boolean;
@@ -538,9 +542,22 @@ function PlayerProfileHeader({
       }
       action={
         showRosterLink ? (
-          <Link href="/roster" className={secondaryButtonClassName}>
-            Back to Roster
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {playerId ? (
+              <Link
+                href={`/players/${playerId}/year-end-report`}
+                className={primaryButtonClassName}
+              >
+                Year-End Summary
+              </Link>
+            ) : null}
+            <Link
+              href="/roster"
+              className={secondaryButtonClassName}
+            >
+              Back to Roster
+            </Link>
+          </div>
         ) : null
       }
     />
