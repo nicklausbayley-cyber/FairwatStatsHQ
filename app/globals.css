@@ -28,3 +28,25 @@ body {
   background: #bbf7d0;
   color: #052e16;
 }
+
+
+@media print {
+  @page {
+    size: letter;
+    margin: 0.45in;
+  }
+
+  body {
+    background: #ffffff !important;
+  }
+
+  .year-end-report {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .year-end-report .avoid-print-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

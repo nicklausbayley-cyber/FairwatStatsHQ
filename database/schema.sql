@@ -155,6 +155,21 @@ create table if not exists public.coach_notes (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.player_season_summaries (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  player_id uuid not null references public.players(id) on delete cascade,
+  season_id uuid not null references public.seasons(id) on delete cascade,
+  updated_by uuid references public.profiles(id) on delete set null,
+  season_summary text,
+  strengths text,
+  development_areas text,
+  next_season_goals text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (team_id, player_id, season_id)
+);
+
 create index if not exists profiles_team_id_idx on public.profiles(team_id);
 create index if not exists seasons_team_id_idx on public.seasons(team_id);
 create index if not exists players_team_id_idx on public.players(team_id);
@@ -170,6 +185,10 @@ create index if not exists round_holes_round_id_idx on public.round_holes(round_
 create index if not exists round_holes_player_id_idx on public.round_holes(player_id);
 create index if not exists round_holes_course_id_idx on public.round_holes(course_id);
 create index if not exists coach_notes_team_id_idx on public.coach_notes(team_id);
+create index if not exists player_season_summaries_team_idx
+  on public.player_season_summaries(team_id);
+create index if not exists player_season_summaries_player_idx
+  on public.player_season_summaries(player_id, season_id);
 
 create or replace function public.current_team_id()
 returns uuid
@@ -229,6 +248,7 @@ alter table public.course_holes enable row level security;
 alter table public.rounds enable row level security;
 alter table public.round_holes enable row level security;
 alter table public.coach_notes enable row level security;
+alter table public.player_season_summaries enable row level security;
 
 drop policy if exists "Team members can read their team" on public.teams;
 create policy "Team members can read their team"
@@ -461,6 +481,26 @@ using (public.is_team_staff(team_id));
 drop policy if exists "Team staff can manage coach notes" on public.coach_notes;
 create policy "Team staff can manage coach notes"
 on public.coach_notes
+for all
+to authenticated
+using (public.is_team_staff(team_id))
+with check (public.is_team_staff(team_id));
+
+
+drop policy if exists "Team staff can read player season summaries"
+on public.player_season_summaries;
+
+create policy "Team staff can read player season summaries"
+on public.player_season_summaries
+for select
+to authenticated
+using (public.is_team_staff(team_id));
+
+drop policy if exists "Team staff can manage player season summaries"
+on public.player_season_summaries;
+
+create policy "Team staff can manage player season summaries"
+on public.player_season_summaries
 for all
 to authenticated
 using (public.is_team_staff(team_id))

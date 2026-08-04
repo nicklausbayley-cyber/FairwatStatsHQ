@@ -363,6 +363,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      player_season_summaries: {
+        Row: {
+          id: string;
+          team_id: string;
+          player_id: string;
+          season_id: string;
+          updated_by: string | null;
+          season_summary: string | null;
+          strengths: string | null;
+          development_areas: string | null;
+          next_season_goals: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          player_id: string;
+          season_id: string;
+          updated_by?: string | null;
+          season_summary?: string | null;
+          strengths?: string | null;
+          development_areas?: string | null;
+          next_season_goals?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          team_id?: string;
+          player_id?: string;
+          season_id?: string;
+          updated_by?: string | null;
+          season_summary?: string | null;
+          strengths?: string | null;
+          development_areas?: string | null;
+          next_season_goals?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       coach_notes: {
         Row: {
           id: string;
