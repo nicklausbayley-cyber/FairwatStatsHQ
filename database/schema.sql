@@ -101,6 +101,7 @@ create table if not exists public.rounds (
   event_id uuid references public.events(id) on delete set null,
   player_id uuid not null references public.players(id) on delete cascade,
   submitted_by uuid references public.profiles(id) on delete set null,
+  counts_toward_lineup boolean not null default true,
   played_on date not null,
   holes integer not null check (holes in (9, 18)),
   score integer not null check (score > 0),
@@ -161,6 +162,9 @@ create index if not exists events_team_id_idx on public.events(team_id);
 create index if not exists courses_team_id_idx on public.courses(team_id);
 create index if not exists course_holes_course_id_idx on public.course_holes(course_id);
 create index if not exists rounds_team_id_idx on public.rounds(team_id);
+create index if not exists rounds_lineup_qualifying_idx
+  on public.rounds(team_id, player_id, played_on desc)
+  where counts_toward_lineup = true;
 create index if not exists round_holes_team_id_idx on public.round_holes(team_id);
 create index if not exists round_holes_round_id_idx on public.round_holes(round_id);
 create index if not exists round_holes_player_id_idx on public.round_holes(player_id);
