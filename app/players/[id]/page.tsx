@@ -63,12 +63,18 @@ type RoundWithEvent = RoundRow & {
   eventName: string | null;
 };
 
-type PlayerStats = {
+type RoundLengthStats = {
   roundsPlayed: number;
   averageScore: number | null;
   lastFiveAverage: number | null;
   qualifyingRoundsCount: number;
   bestScore: number | null;
+};
+
+type PlayerStats = {
+  roundsPlayed: number;
+  nineHole: RoundLengthStats;
+  eighteenHole: RoundLengthStats;
   averagePutts: number | null;
   fairwayPercentage: number | null;
   girPercentage: number | null;
@@ -154,16 +160,38 @@ function percentageFromTotals(
   return totals.hit / totals.possible;
 }
 
-function buildStats(rounds: RoundRow[]): PlayerStats {
-  const qualifyingRounds = rounds.filter((round) => round.counts_toward_lineup);
+function buildRoundLengthStats(
+  rounds: RoundRow[],
+  holes: 9 | 18
+): RoundLengthStats {
+  const formatRounds = rounds.filter(
+    (round) => round.holes === holes
+  );
+  const qualifyingRounds = formatRounds.filter(
+    (round) => round.counts_toward_lineup
+  );
   const lastFiveQualifyingRounds = qualifyingRounds.slice(0, 5);
 
   return {
-    roundsPlayed: rounds.length,
-    averageScore: average(rounds.map((round) => round.score)),
-    lastFiveAverage: average(lastFiveQualifyingRounds.map((round) => round.score)),
+    roundsPlayed: formatRounds.length,
+    averageScore: average(
+      formatRounds.map((round) => round.score)
+    ),
+    lastFiveAverage: average(
+      lastFiveQualifyingRounds.map((round) => round.score)
+    ),
     qualifyingRoundsCount: qualifyingRounds.length,
-    bestScore: bestScore(rounds.map((round) => round.score)),
+    bestScore: bestScore(
+      formatRounds.map((round) => round.score)
+    )
+  };
+}
+
+function buildStats(rounds: RoundRow[]): PlayerStats {
+  return {
+    roundsPlayed: rounds.length,
+    nineHole: buildRoundLengthStats(rounds, 9),
+    eighteenHole: buildRoundLengthStats(rounds, 18),
     averagePutts: average(rounds.map((round) => round.putts)),
     fairwayPercentage: percentageFromTotals(
       rounds,
@@ -175,8 +203,12 @@ function buildStats(rounds: RoundRow[]): PlayerStats {
       "greens_in_regulation",
       "gir_possible"
     ),
-    averagePenalties: average(rounds.map((round) => round.penalties)),
-    averageThreePutts: average(rounds.map((round) => round.three_putts))
+    averagePenalties: average(
+      rounds.map((round) => round.penalties)
+    ),
+    averageThreePutts: average(
+      rounds.map((round) => round.three_putts)
+    )
   };
 }
 
@@ -368,22 +400,54 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
             />
             <InfoItem label="Status" value={profile.player.status} capitalize />
             <InfoItem
-              label="Lineup-Eligible Rounds"
-              value={profile.stats.qualifyingRoundsCount.toString()}
+              label="Eligible 9-Hole Rounds"
+              value={profile.stats.nineHole.qualifyingRoundsCount.toString()}
+            />
+            <InfoItem
+              label="Eligible 18-Hole Rounds"
+              value={profile.stats.eighteenHole.qualifyingRoundsCount.toString()}
             />
           </dl>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Rounds Played" value={profile.stats.roundsPlayed.toString()} />
-          <StatCard label="Season Average" value={formatAverage(profile.stats.averageScore)} />
-          <StatCard label="Last 5 Average" value={formatAverage(profile.stats.lastFiveAverage)} />
-          <StatCard label="Best Score" value={formatWholeNumber(profile.stats.bestScore)} />
-          <StatCard label="Average Putts" value={formatAverage(profile.stats.averagePutts)} />
-          <StatCard label="Fairway Percentage" value={formatPercentage(profile.stats.fairwayPercentage)} />
-          <StatCard label="GIR Percentage" value={formatPercentage(profile.stats.girPercentage)} />
-          <StatCard label="Average Penalties" value={formatAverage(profile.stats.averagePenalties)} />
-          <StatCard label="Average Three-putts" value={formatAverage(profile.stats.averageThreePutts)} />
+        <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <RoundLengthSummaryCard
+              holes={9}
+              stats={profile.stats.nineHole}
+            />
+            <RoundLengthSummaryCard
+              holes={18}
+              stats={profile.stats.eighteenHole}
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <StatCard
+              label="Total Rounds"
+              value={profile.stats.roundsPlayed.toString()}
+            />
+            <StatCard
+              label="Overall Avg Putts"
+              value={formatAverage(profile.stats.averagePutts)}
+            />
+            <StatCard
+              label="Overall Fairway Percentage"
+              value={formatPercentage(profile.stats.fairwayPercentage)}
+            />
+            <StatCard
+              label="Overall GIR Percentage"
+              value={formatPercentage(profile.stats.girPercentage)}
+            />
+            <StatCard
+              label="Overall Avg Penalties"
+              value={formatAverage(profile.stats.averagePenalties)}
+            />
+            <StatCard
+              label="Overall Avg Three-putts"
+              value={formatAverage(profile.stats.averageThreePutts)}
+            />
+          </div>
         </div>
       </div>
 
@@ -397,7 +461,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
               Recent Rounds
             </h2>
             <p className="mt-2 text-sm text-slate-600">
-              The Last 5 Average uses the five most recent rounds marked as counting toward the lineup.
+              Nine-hole and 18-hole lineup form are calculated separately using eligible rounds only.
             </p>
           </div>
           <Badge>{profile.rounds.length} rounds</Badge>
@@ -500,6 +564,80 @@ function InfoItem({
       <dd className={capitalize ? "mt-1 capitalize text-slate-950" : "mt-1 text-slate-950"}>
         {value}
       </dd>
+    </div>
+  );
+}
+
+function RoundLengthSummaryCard({
+  holes,
+  stats
+}: {
+  holes: 9 | 18;
+  stats: RoundLengthStats;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
+            Lineup Form
+          </p>
+          <h3 className="mt-1 text-xl font-bold text-slate-950">
+            {holes}-Hole Rounds
+          </h3>
+        </div>
+
+        <Badge tone={holes === 9 ? "green" : "slate"}>
+          {stats.qualifyingRoundsCount} eligible
+        </Badge>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <MiniStat
+          label="Last 5 Avg"
+          value={formatAverage(stats.lastFiveAverage)}
+          strong
+        />
+        <MiniStat
+          label="Season Avg"
+          value={formatAverage(stats.averageScore)}
+        />
+        <MiniStat
+          label="Rounds"
+          value={stats.roundsPlayed.toString()}
+        />
+        <MiniStat
+          label="Best"
+          value={formatWholeNumber(stats.bestScore)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  strong = false
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <p
+        className={
+          strong
+            ? "mt-1 text-xl font-bold text-green-800"
+            : "mt-1 text-lg font-semibold text-slate-950"
+        }
+      >
+        {value}
+      </p>
     </div>
   );
 }

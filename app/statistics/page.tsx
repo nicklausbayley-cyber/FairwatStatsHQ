@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   requireTeamStaff,
   type CurrentTeamContext
@@ -26,6 +27,7 @@ type SupabaseServiceClient = CurrentTeamContext["supabase"];
 type SearchParams = {
   courseId?: string | string[];
   eventId?: string | string[];
+  lineupHoles?: string | string[];
 };
 
 type StatisticsPageProps = {
@@ -35,6 +37,7 @@ type StatisticsPageProps = {
 type StatisticsFilters = {
   courseId: string;
   eventId: string;
+  lineupHoles: 9 | 18;
 };
 
 type PlayerRow = {
@@ -49,6 +52,7 @@ type RoundRow = {
   event_id: string | null;
   played_on: string;
   counts_toward_lineup: boolean;
+  holes: number;
   score: number;
   putts: number | null;
   fairways_hit: number | null;
@@ -161,6 +165,7 @@ type StatisticsState =
       status: "ready";
       teamName: string;
       activeSeasonName: string | null;
+      lineupHoles: 9 | 18;
       playerStats: PlayerStats[];
       holeBreakdown: HoleBreakdown;
     }
@@ -179,6 +184,31 @@ function getSearchValue(value: string | string[] | undefined) {
   }
 
   return value ?? "";
+}
+
+function getLineupHoles(
+  value: string | string[] | undefined
+): 9 | 18 {
+  return getSearchValue(value) === "18" ? 18 : 9;
+}
+
+function buildStatisticsHref(
+  filters: Pick<StatisticsFilters, "courseId" | "eventId">,
+  lineupHoles: 9 | 18
+) {
+  const params = new URLSearchParams();
+
+  params.set("lineupHoles", lineupHoles.toString());
+
+  if (filters.courseId) {
+    params.set("courseId", filters.courseId);
+  }
+
+  if (filters.eventId) {
+    params.set("eventId", filters.eventId);
+  }
+
+  return `/statistics?${params.toString()}`;
 }
 
 function getErrorMessage(error: unknown) {
@@ -412,9 +442,16 @@ function formatEventLabel(event: EventOption) {
   return `${event.name} (${event.eventDate})`;
 }
 
-function getLastFiveLineupRounds(rounds: RoundRow[]) {
+function getLastFiveLineupRounds(
+  rounds: RoundRow[],
+  lineupHoles: 9 | 18
+) {
   return [...rounds]
-    .filter((round) => round.counts_toward_lineup)
+    .filter(
+      (round) =>
+        round.counts_toward_lineup &&
+        round.holes === lineupHoles
+    )
     .sort((a, b) => {
       const dateComparison = b.played_on.localeCompare(a.played_on);
 
@@ -427,7 +464,11 @@ function getLastFiveLineupRounds(rounds: RoundRow[]) {
     .slice(0, 5);
 }
 
-function buildPlayerStats(players: PlayerRow[], rounds: RoundRow[]) {
+function buildPlayerStats(
+  players: PlayerRow[],
+  rounds: RoundRow[],
+  lineupHoles: 9 | 18
+) {
   const roundsByPlayer = new Map<string, RoundRow[]>();
 
   rounds.forEach((round) => {
@@ -439,7 +480,13 @@ function buildPlayerStats(players: PlayerRow[], rounds: RoundRow[]) {
   const sortedStats = players
     .map((player) => {
       const playerRounds = roundsByPlayer.get(player.id) ?? [];
-      const lineupRounds = getLastFiveLineupRounds(playerRounds);
+      const formatRounds = playerRounds.filter(
+        (round) => round.holes === lineupHoles
+      );
+      const lineupRounds = getLastFiveLineupRounds(
+        playerRounds,
+        lineupHoles
+      );
 
       return {
         id: player.id,
@@ -449,25 +496,31 @@ function buildPlayerStats(players: PlayerRow[], rounds: RoundRow[]) {
         lastFiveAverage: average(
           lineupRounds.map((round) => round.score)
         ),
-        roundsPlayed: playerRounds.length,
-        averageScore: average(playerRounds.map((round) => round.score)),
-        bestScore: bestScore(playerRounds.map((round) => round.score)),
-        averagePutts: average(playerRounds.map((round) => round.putts)),
+        roundsPlayed: formatRounds.length,
+        averageScore: average(
+          formatRounds.map((round) => round.score)
+        ),
+        bestScore: bestScore(
+          formatRounds.map((round) => round.score)
+        ),
+        averagePutts: average(
+          formatRounds.map((round) => round.putts)
+        ),
         fairwayPercentage: percentageFromTotals(
-          playerRounds,
+          formatRounds,
           "fairways_hit",
           "fairways_possible"
         ),
         girPercentage: percentageFromTotals(
-          playerRounds,
+          formatRounds,
           "greens_in_regulation",
           "gir_possible"
         ),
         averagePenalties: average(
-          playerRounds.map((round) => round.penalties)
+          formatRounds.map((round) => round.penalties)
         ),
         averageThreePutts: average(
-          playerRounds.map((round) => round.three_putts)
+          formatRounds.map((round) => round.three_putts)
         )
       };
     })
@@ -481,13 +534,13 @@ function buildPlayerStats(players: PlayerRow[], rounds: RoundRow[]) {
         return aLineupAverage - bLineupAverage;
       }
 
-      const aSeasonAverage =
+      const aFormatAverage =
         a.averageScore ?? Number.POSITIVE_INFINITY;
-      const bSeasonAverage =
+      const bFormatAverage =
         b.averageScore ?? Number.POSITIVE_INFINITY;
 
-      if (aSeasonAverage !== bSeasonAverage) {
-        return aSeasonAverage - bSeasonAverage;
+      if (aFormatAverage !== bFormatAverage) {
+        return aFormatAverage - bFormatAverage;
       }
 
       return a.playerName.localeCompare(b.playerName);
@@ -667,7 +720,7 @@ async function getStatistics(
     const roundsQuery = supabase
       .from("rounds")
       .select(
-        "id, player_id, event_id, played_on, counts_toward_lineup, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts"
+        "id, player_id, event_id, played_on, counts_toward_lineup, holes, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts"
       )
       .eq("team_id", team.id);
 
@@ -697,7 +750,11 @@ async function getStatistics(
 
     const players = (playersResult.data ?? []) as PlayerRow[];
     const rounds = (roundsResult.data ?? []) as RoundRow[];
-    const playerStats = buildPlayerStats(players, rounds);
+    const playerStats = buildPlayerStats(
+      players,
+      rounds,
+      filters.lineupHoles
+    );
     const holeBreakdown = await getHoleBreakdown(
       supabase,
       team.id,
@@ -710,6 +767,7 @@ async function getStatistics(
       status: "ready",
       teamName: team.name,
       activeSeasonName: activeSeason?.name ?? null,
+      lineupHoles: filters.lineupHoles,
       playerStats,
       holeBreakdown
     };
@@ -724,10 +782,12 @@ async function getStatistics(
 export default async function StatisticsPage({ searchParams }: StatisticsPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const currentTeam = await requireTeamStaff();
-  const statistics = await getStatistics({
+  const filters: StatisticsFilters = {
     courseId: getSearchValue(resolvedSearchParams.courseId),
-    eventId: getSearchValue(resolvedSearchParams.eventId)
-  }, currentTeam);
+    eventId: getSearchValue(resolvedSearchParams.eventId),
+    lineupHoles: getLineupHoles(resolvedSearchParams.lineupHoles)
+  };
+  const statistics = await getStatistics(filters, currentTeam);
 
   if (statistics.status === "error") {
     return (
@@ -756,28 +816,71 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
       />
 
       <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 sm:p-8">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+        <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-start">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
               Lineup Form
             </p>
             <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
-              Last Five Eligible Rounds
+              Last Five Eligible {statistics.lineupHoles}-Hole Rounds
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Players are ranked by the average of their five most recent
-              rounds marked to count toward the lineup. Full-season
-              statistics remain unchanged.
+              Rankings only compare rounds with the same number of holes.
+              Nine-hole and 18-hole scores are never blended together.
             </p>
           </div>
 
-          <Badge tone="green">
-            {
-              statistics.playerStats.filter(
-                (player) => player.lineupRank !== null
-              ).length
-            } ranked
-          </Badge>
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center xl:flex-col xl:items-end">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+              <Link
+                href={buildStatisticsHref(
+                  {
+                    courseId:
+                      statistics.holeBreakdown.selectedCourseId,
+                    eventId:
+                      statistics.holeBreakdown.selectedEventId
+                  },
+                  9
+                )}
+                className={cn(
+                  "rounded-md px-4 py-2 text-sm font-semibold transition",
+                  statistics.lineupHoles === 9
+                    ? "bg-green-800 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-white hover:text-slate-950"
+                )}
+              >
+                9-Hole
+              </Link>
+
+              <Link
+                href={buildStatisticsHref(
+                  {
+                    courseId:
+                      statistics.holeBreakdown.selectedCourseId,
+                    eventId:
+                      statistics.holeBreakdown.selectedEventId
+                  },
+                  18
+                )}
+                className={cn(
+                  "rounded-md px-4 py-2 text-sm font-semibold transition",
+                  statistics.lineupHoles === 18
+                    ? "bg-green-800 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-white hover:text-slate-950"
+                )}
+              >
+                18-Hole
+              </Link>
+            </div>
+
+            <Badge tone="green">
+              {
+                statistics.playerStats.filter(
+                  (player) => player.lineupRank !== null
+                ).length
+              } ranked
+            </Badge>
+          </div>
         </div>
       </div>
 
@@ -795,8 +898,8 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
             <span>Player</span>
             <span>Last 5 Avg</span>
             <span>Counted</span>
-            <span>Season Avg</span>
-            <span>Rounds</span>
+            <span>{statistics.lineupHoles}-Hole Avg</span>
+            <span>{statistics.lineupHoles}-Hole Rounds</span>
             <span>Best</span>
             <span>Avg Putts</span>
             <span>Fairways</span>
@@ -807,13 +910,20 @@ export default async function StatisticsPage({ searchParams }: StatisticsPagePro
 
           <div className="divide-y divide-gray-100">
             {statistics.playerStats.map((player) => (
-              <PlayerStatRow key={player.id} player={player} />
+              <PlayerStatRow
+                key={player.id}
+                player={player}
+                lineupHoles={statistics.lineupHoles}
+              />
             ))}
           </div>
         </div>
       )}
 
-      <HoleBreakdownSection breakdown={statistics.holeBreakdown} />
+      <HoleBreakdownSection
+        breakdown={statistics.holeBreakdown}
+        lineupHoles={statistics.lineupHoles}
+      />
     </section>
   );
 }
@@ -852,7 +962,13 @@ function StatisticsHeader({
   );
 }
 
-function PlayerStatRow({ player }: { player: PlayerStats }) {
+function PlayerStatRow({
+  player,
+  lineupHoles
+}: {
+  player: PlayerStats;
+  lineupHoles: 9 | 18;
+}) {
   const isProjectedLineup =
     player.lineupRank !== null && player.lineupRank <= 5;
 
@@ -910,12 +1026,12 @@ function PlayerStatRow({ player }: { player: PlayerStats }) {
       />
 
       <StatCell
-        label="Season Avg"
+        label={`${lineupHoles}-Hole Avg`}
         value={formatAverage(player.averageScore)}
       />
 
       <StatCell
-        label="Rounds"
+        label={`${lineupHoles}-Hole Rounds`}
         value={player.roundsPlayed.toString()}
       />
 
@@ -952,7 +1068,13 @@ function PlayerStatRow({ player }: { player: PlayerStats }) {
   );
 }
 
-function HoleBreakdownSection({ breakdown }: { breakdown: HoleBreakdown }) {
+function HoleBreakdownSection({
+  breakdown,
+  lineupHoles
+}: {
+  breakdown: HoleBreakdown;
+  lineupHoles: 9 | 18;
+}) {
   const hardestHoleNumbers = new Set(
     breakdown.hardestHoles.map((hole) => hole.holeNumber)
   );
@@ -986,6 +1108,11 @@ function HoleBreakdownSection({ breakdown }: { breakdown: HoleBreakdown }) {
         </div>
 
         <form className="mt-6 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+          <input
+            type="hidden"
+            name="lineupHoles"
+            value={lineupHoles}
+          />
           <label className="space-y-2">
             <span className="text-sm font-semibold text-slate-700">Course</span>
             <select
