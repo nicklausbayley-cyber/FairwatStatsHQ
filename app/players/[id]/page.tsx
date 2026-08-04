@@ -6,6 +6,7 @@ import {
   type CurrentTeamContext
 } from "../../../lib/auth/get-current-team";
 import { getActiveSeasonForTeam } from "../../../lib/seasons/active-season";
+import { LineupStatusToggle } from "../../../components/rounds/lineup-status-toggle";
 import {
   Badge,
   EmptyState,
@@ -50,6 +51,7 @@ type RoundRow = {
   penalties: number | null;
   three_putts: number | null;
   notes: string | null;
+  counts_toward_lineup: boolean;
 };
 
 type EventRow = {
@@ -64,6 +66,8 @@ type RoundWithEvent = RoundRow & {
 type PlayerStats = {
   roundsPlayed: number;
   averageScore: number | null;
+  lastFiveAverage: number | null;
+  qualifyingRoundsCount: number;
   bestScore: number | null;
   averagePutts: number | null;
   fairwayPercentage: number | null;
@@ -151,9 +155,14 @@ function percentageFromTotals(
 }
 
 function buildStats(rounds: RoundRow[]): PlayerStats {
+  const qualifyingRounds = rounds.filter((round) => round.counts_toward_lineup);
+  const lastFiveQualifyingRounds = qualifyingRounds.slice(0, 5);
+
   return {
     roundsPlayed: rounds.length,
     averageScore: average(rounds.map((round) => round.score)),
+    lastFiveAverage: average(lastFiveQualifyingRounds.map((round) => round.score)),
+    qualifyingRoundsCount: qualifyingRounds.length,
     bestScore: bestScore(rounds.map((round) => round.score)),
     averagePutts: average(rounds.map((round) => round.putts)),
     fairwayPercentage: percentageFromTotals(
@@ -234,10 +243,11 @@ async function getPlayerProfile(
     }
 
     const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
-    const roundsQuery = supabase
+    const untypedSupabase = supabase as any;
+    const roundsQuery = untypedSupabase
       .from("rounds")
       .select(
-        "id, event_id, played_on, holes, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts, notes"
+        "id, event_id, played_on, holes, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts, notes, counts_toward_lineup"
       )
       .eq("team_id", team.id)
       .eq("player_id", player.id);
@@ -303,6 +313,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   const { id } = await params;
   const currentTeam = await requireCurrentTeam();
   const profile = await getPlayerProfile(id, currentTeam);
+  const showLineupControls = isTeamStaff(currentTeam.role);
 
   if (profile.status === "restricted") {
     redirect("/enter-score");
@@ -311,7 +322,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   if (profile.status === "error") {
     return (
       <section className="space-y-6">
-        <PlayerProfileHeader showRosterLink={isTeamStaff(currentTeam.role)} />
+        <PlayerProfileHeader showRosterLink={showLineupControls} />
         <EmptyState title="Player profile unavailable" message={profile.message} />
       </section>
     );
@@ -320,7 +331,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   if (profile.status === "not-found") {
     return (
       <section className="space-y-6">
-        <PlayerProfileHeader showRosterLink={isTeamStaff(currentTeam.role)} />
+        <PlayerProfileHeader showRosterLink={showLineupControls} />
         <EmptyState
           message={profile.message}
           action={
@@ -340,7 +351,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       <PlayerProfileHeader
         playerName={playerName}
         activeSeasonName={profile.activeSeasonName}
-        showRosterLink={isTeamStaff(currentTeam.role)}
+        showRosterLink={showLineupControls}
       />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
@@ -357,12 +368,17 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
               value={profile.player.graduation_year?.toString() ?? "Not set"}
             />
             <InfoItem label="Status" value={profile.player.status} capitalize />
+            <InfoItem
+              label="Lineup-Eligible Rounds"
+              value={profile.stats.qualifyingRoundsCount.toString()}
+            />
           </dl>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Rounds Played" value={profile.stats.roundsPlayed.toString()} />
-          <StatCard label="Average Score" value={formatAverage(profile.stats.averageScore)} />
+          <StatCard label="Season Average" value={formatAverage(profile.stats.averageScore)} />
+          <StatCard label="Last 5 Average" value={formatAverage(profile.stats.lastFiveAverage)} />
           <StatCard label="Best Score" value={formatWholeNumber(profile.stats.bestScore)} />
           <StatCard label="Average Putts" value={formatAverage(profile.stats.averagePutts)} />
           <StatCard label="Fairway Percentage" value={formatPercentage(profile.stats.fairwayPercentage)} />
@@ -381,6 +397,9 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
             <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
               Recent Rounds
             </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              The Last 5 Average uses the five most recent rounds marked as counting toward the lineup.
+            </p>
           </div>
           <Badge>{profile.rounds.length} rounds</Badge>
         </div>
@@ -396,7 +415,10 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         />
       ) : (
         <div className={tableShellClassName}>
-          <div className={cn(tableHeaderClassName, "xl:grid xl:grid-cols-[1fr_1.4fr_0.7fr_0.7fr_0.8fr_1fr_0.8fr_0.8fr_0.8fr_1.4fr_0.9fr]")}>
+          <div className={cn(tableHeaderClassName, showLineupControls
+            ? "xl:grid xl:grid-cols-[1fr_1.35fr_0.6fr_0.65fr_0.75fr_0.9fr_0.75fr_0.75fr_0.75fr_1.2fr_1.25fr_0.85fr]"
+            : "xl:grid xl:grid-cols-[1fr_1.4fr_0.7fr_0.7fr_0.8fr_1fr_0.8fr_0.8fr_0.8fr_1.4fr_0.9fr]")}
+          >
             <span>Date</span>
             <span>Event</span>
             <span>Holes</span>
@@ -407,12 +429,17 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
             <span>Penalties</span>
             <span>3-putts</span>
             <span>Notes</span>
+            {showLineupControls ? <span>Lineup Average</span> : null}
             <span>Actions</span>
           </div>
 
           <div className="divide-y divide-gray-100">
             {profile.rounds.map((round) => (
-              <RoundRowView key={round.id} round={round} />
+              <RoundRowView
+                key={round.id}
+                round={round}
+                showLineupControls={showLineupControls}
+              />
             ))}
           </div>
         </div>
@@ -436,7 +463,7 @@ function PlayerProfileHeader({
       title={playerName ?? "Player Profile"}
       description={
         playerName
-          ? "Scoring history, stat summary, and recent round detail."
+          ? "Scoring history, current lineup form, and recent round detail."
           : "Player details will appear once Supabase data is available."
       }
       meta={
@@ -478,9 +505,20 @@ function InfoItem({
   );
 }
 
-function RoundRowView({ round }: { round: RoundWithEvent }) {
+function RoundRowView({
+  round,
+  showLineupControls
+}: {
+  round: RoundWithEvent;
+  showLineupControls: boolean;
+}) {
   return (
-    <div className={cn(tableRowClassName, "xl:grid-cols-[1fr_1.4fr_0.7fr_0.7fr_0.8fr_1fr_0.8fr_0.8fr_0.8fr_1.4fr_0.9fr] xl:items-center")}>
+    <div className={cn(
+      tableRowClassName,
+      showLineupControls
+        ? "xl:grid-cols-[1fr_1.35fr_0.6fr_0.65fr_0.75fr_0.9fr_0.75fr_0.75fr_0.75fr_1.2fr_1.25fr_0.85fr] xl:items-center"
+        : "xl:grid-cols-[1fr_1.4fr_0.7fr_0.7fr_0.8fr_1fr_0.8fr_0.8fr_0.8fr_1.4fr_0.9fr] xl:items-center"
+    )}>
       <Cell label="Date" value={formatDate(round.played_on)} strong />
       <Cell label="Event" value={round.eventName ?? "No event"} />
       <Cell label="Holes" value={round.holes.toString()} />
@@ -497,6 +535,13 @@ function RoundRowView({ round }: { round: RoundWithEvent }) {
       <Cell label="Penalties" value={round.penalties?.toString() ?? "No data"} />
       <Cell label="Three-putts" value={round.three_putts?.toString() ?? "No data"} />
       <Cell label="Notes" value={round.notes || "No notes"} />
+
+      {showLineupControls ? (
+        <LineupStatusToggle
+          roundId={round.id}
+          initialValue={round.counts_toward_lineup}
+        />
+      ) : null}
 
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
