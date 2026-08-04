@@ -243,8 +243,7 @@ async function getPlayerProfile(
     }
 
     const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
-    const untypedSupabase = supabase as any;
-    const roundsQuery = untypedSupabase
+    const roundsQuery = supabase
       .from("rounds")
       .select(
         "id, event_id, played_on, holes, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts, notes, counts_toward_lineup"

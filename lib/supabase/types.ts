@@ -248,6 +248,7 @@ export type Database = {
           event_id: string | null;
           player_id: string;
           submitted_by: string | null;
+          counts_toward_lineup: boolean;
           played_on: string;
           holes: number;
           score: number;
@@ -269,6 +270,7 @@ export type Database = {
           event_id?: string | null;
           player_id: string;
           submitted_by?: string | null;
+          counts_toward_lineup?: boolean;
           played_on: string;
           holes: number;
           score: number;
@@ -290,6 +292,7 @@ export type Database = {
           event_id?: string | null;
           player_id?: string;
           submitted_by?: string | null;
+          counts_toward_lineup?: boolean;
           played_on?: string;
           holes?: number;
           score?: number;
