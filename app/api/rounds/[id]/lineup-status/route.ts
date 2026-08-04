@@ -59,9 +59,8 @@ export async function PATCH(
     }
 
     const { supabase, team } = currentTeam.data;
-    const untypedSupabase = supabase as any;
 
-    const { data: updatedRound, error } = await untypedSupabase
+    const { data: updatedRound, error } = await supabase
       .from("rounds")
       .update({
         counts_toward_lineup: input.countsTowardLineup

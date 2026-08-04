@@ -18,12 +18,18 @@ export default function ForgotPasswordPage() {
   useEffect(() => {
     const error = new URLSearchParams(window.location.search).get("error");
 
-    if (error) {
+    if (!error) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
       setMessage({
         type: "error",
         text: "This password reset link is invalid or has expired. Request a new link."
       });
-    }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
