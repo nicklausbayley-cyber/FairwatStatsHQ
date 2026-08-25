@@ -72,6 +72,27 @@ function formatDifferential(value: number | null) {
   return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
 }
 
+function formatSplitAverage(
+  nineHoleValue: number | null,
+  eighteenHoleValue: number | null
+) {
+  if (nineHoleValue === null && eighteenHoleValue === null) {
+    return "No data";
+  }
+
+  const parts = [];
+
+  if (nineHoleValue !== null) {
+    parts.push(`9H ${nineHoleValue.toFixed(1)}`);
+  }
+
+  if (eighteenHoleValue !== null) {
+    parts.push(`18H ${eighteenHoleValue.toFixed(1)}`);
+  }
+
+  return parts.join(" · ");
+}
+
 function formatStatPair(value: number | null, possible: number | null) {
   if (value === null || possible === null) {
     return "Not set";
@@ -99,13 +120,13 @@ function buildMetricCards(summary: DashboardSummary): MetricCard[] {
     },
     {
       label: "Team average score",
-      value: formatAverage(summary.averageScore),
-      helper: "Rounds with scores"
+      value: formatSplitAverage(summary.averageScore9, summary.averageScore18),
+      helper: "9-hole and 18-hole averages shown separately"
     },
     {
       label: "Team average putts",
-      value: formatAverage(summary.averagePutts),
-      helper: "Rounds with putts"
+      value: formatSplitAverage(summary.averagePutts9, summary.averagePutts18),
+      helper: "9-hole and 18-hole averages shown separately"
     },
     {
       label: "Team fairway percentage",
@@ -119,8 +140,11 @@ function buildMetricCards(summary: DashboardSummary): MetricCard[] {
     },
     {
       label: "Average penalties per round",
-      value: formatAverage(summary.averagePenalties),
-      helper: "Rounds with penalties"
+      value: formatSplitAverage(
+        summary.averagePenalties9,
+        summary.averagePenalties18
+      ),
+      helper: "9-hole and 18-hole averages shown separately"
     }
   ];
 }
@@ -161,7 +185,7 @@ function LineupPerformanceRow({
     <div
       className={cn(
         tableRowClassName,
-        "sm:grid-cols-2 lg:grid-cols-[1.5fr_0.85fr_0.95fr_0.85fr_0.95fr_0.95fr] lg:items-center"
+        "sm:grid-cols-2 lg:grid-cols-[1.5fr_1.05fr_0.95fr_0.85fr_0.95fr_0.95fr] lg:items-center"
       )}
     >
       <div>
@@ -183,9 +207,17 @@ function LineupPerformanceRow({
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Avg Score
         </p>
-        <p className="font-medium text-slate-800">
-          {formatAverage(player.averageScore)}
-        </p>
+        <div className="space-y-1 font-medium text-slate-800">
+          {player.averageScore9 !== null ? (
+            <p><span className="text-xs font-semibold text-slate-500">9H</span> {formatAverage(player.averageScore9)}</p>
+          ) : null}
+          {player.averageScore18 !== null ? (
+            <p><span className="text-xs font-semibold text-slate-500">18H</span> {formatAverage(player.averageScore18)}</p>
+          ) : null}
+          {player.averageScore9 === null && player.averageScore18 === null ? (
+            <p>No data</p>
+          ) : null}
+        </div>
       </div>
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
@@ -366,6 +398,7 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
               Counting Differential compares each eligible player score with the
               team&apos;s fourth-lowest score in the same event and round length.
               Negative numbers indicate performance better than the counting-score cutoff.
+              Differential values are normalized to a 9-hole basis when 9-hole and 18-hole events are combined.
             </p>
           </div>
           <Link href="/statistics" className={secondaryButtonClassName}>
@@ -381,7 +414,7 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
           <div
             className={cn(
               tableHeaderClassName,
-              "lg:grid lg:grid-cols-[1.5fr_0.85fr_0.95fr_0.85fr_0.95fr_0.95fr]"
+              "lg:grid lg:grid-cols-[1.5fr_1.05fr_0.95fr_0.85fr_0.95fr_0.95fr]"
             )}
           >
             <span>Player</span>
