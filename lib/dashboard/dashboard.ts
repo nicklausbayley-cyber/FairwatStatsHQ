@@ -51,17 +51,21 @@ export type DashboardSummary = {
   totalPlayers: number;
   totalEvents: number;
   totalRounds: number;
-  averageScore: number | null;
-  averagePutts: number | null;
+  averageScore9: number | null;
+  averageScore18: number | null;
+  averagePutts9: number | null;
+  averagePutts18: number | null;
   fairwayPercentage: number | null;
   girPercentage: number | null;
-  averagePenalties: number | null;
+  averagePenalties9: number | null;
+  averagePenalties18: number | null;
 };
 
 export type DashboardLineupPerformance = {
   playerId: string;
   playerName: string;
-  averageScore: number | null;
+  averageScore9: number | null;
+  averageScore18: number | null;
   averageDifferential: number | null;
   countingPercentage: number | null;
   recentDifferential: number | null;
@@ -102,6 +106,10 @@ function average(values: Array<number | null | undefined>) {
   return total / validValues.length;
 }
 
+function roundsForLength(rounds: RoundRow[], holes: 9 | 18) {
+  return rounds.filter((round) => round.holes === holes);
+}
+
 function percentageFromTotals(
   rows: RoundRow[],
   hitKey: "fairways_hit" | "greens_in_regulation",
@@ -133,7 +141,8 @@ function percentageFromTotals(
 
 type DifferentialRound = {
   round: RoundRow;
-  differential: number;
+  rawDifferential: number;
+  normalizedDifferential: number;
 };
 
 function buildLineupPerformance(
@@ -180,9 +189,14 @@ function buildLineupPerformance(
 
     uniquePlayerRounds.forEach((round) => {
       const playerRounds = differentialsByPlayer.get(round.player_id) ?? [];
+      const rawDifferential = round.score - countingScore;
+      const normalizedDifferential =
+        rawDifferential * (9 / round.holes);
+
       playerRounds.push({
         round,
-        differential: round.score - countingScore
+        rawDifferential,
+        normalizedDifferential
       });
       differentialsByPlayer.set(round.player_id, playerRounds);
     });
@@ -201,13 +215,19 @@ function buildLineupPerformance(
 
         return b.round.id.localeCompare(a.round.id);
       });
+      const nineHoleRounds = playerDifferentials.filter(
+        (entry) => entry.round.holes === 9
+      );
+      const eighteenHoleRounds = playerDifferentials.filter(
+        (entry) => entry.round.holes === 18
+      );
       const recentRounds = playerDifferentials.slice(0, 5);
       const priorRounds = playerDifferentials.slice(5, 10);
       const recentDifferential = average(
-        recentRounds.map((entry) => entry.differential)
+        recentRounds.map((entry) => entry.normalizedDifferential)
       );
       const priorDifferential = average(
-        priorRounds.map((entry) => entry.differential)
+        priorRounds.map((entry) => entry.normalizedDifferential)
       );
       let trend: DashboardLineupPerformance["trend"] = "new";
 
@@ -228,15 +248,18 @@ function buildLineupPerformance(
       return {
         playerId: player.id,
         playerName: `${player.first_name} ${player.last_name}`,
-        averageScore: average(
-          playerDifferentials.map((entry) => entry.round.score)
+        averageScore9: average(
+          nineHoleRounds.map((entry) => entry.round.score)
+        ),
+        averageScore18: average(
+          eighteenHoleRounds.map((entry) => entry.round.score)
         ),
         averageDifferential: average(
-          playerDifferentials.map((entry) => entry.differential)
+          playerDifferentials.map((entry) => entry.normalizedDifferential)
         ),
         countingPercentage:
           playerDifferentials.length > 0
-            ? playerDifferentials.filter((entry) => entry.differential <= 0).length /
+            ? playerDifferentials.filter((entry) => entry.rawDifferential <= 0).length /
               playerDifferentials.length
             : null,
         recentDifferential,
@@ -327,6 +350,8 @@ export async function getDashboardData(
     const players = (playersResult.data ?? []) as PlayerLookupRow[];
     const events = (eventsResult.data ?? []) as EventLookupRow[];
     const rounds = (roundsResult.data ?? []) as RoundRow[];
+    const nineHoleRounds = roundsForLength(rounds, 9);
+    const eighteenHoleRounds = roundsForLength(rounds, 18);
 
     const playerNames = new Map(
       players.map((player) => [
@@ -361,8 +386,10 @@ export async function getDashboardData(
         totalPlayers: players.length,
         totalEvents: events.length,
         totalRounds: rounds.length,
-        averageScore: average(rounds.map((round) => round.score)),
-        averagePutts: average(rounds.map((round) => round.putts)),
+        averageScore9: average(nineHoleRounds.map((round) => round.score)),
+        averageScore18: average(eighteenHoleRounds.map((round) => round.score)),
+        averagePutts9: average(nineHoleRounds.map((round) => round.putts)),
+        averagePutts18: average(eighteenHoleRounds.map((round) => round.putts)),
         fairwayPercentage: percentageFromTotals(
           rounds,
           "fairways_hit",
@@ -373,7 +400,12 @@ export async function getDashboardData(
           "greens_in_regulation",
           "gir_possible"
         ),
-        averagePenalties: average(rounds.map((round) => round.penalties))
+        averagePenalties9: average(
+          nineHoleRounds.map((round) => round.penalties)
+        ),
+        averagePenalties18: average(
+          eighteenHoleRounds.map((round) => round.penalties)
+        )
       },
       lineupPerformance: buildLineupPerformance(players, rounds),
       recentRounds
