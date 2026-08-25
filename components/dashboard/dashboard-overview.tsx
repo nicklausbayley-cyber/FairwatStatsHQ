@@ -158,7 +158,7 @@ function trendLabel(trend: DashboardLineupPerformance["trend"]) {
     case "steady":
       return "→ Steady";
     default:
-      return "New";
+      return "Building Trend";
   }
 }
 
@@ -395,10 +395,7 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
               Who is contributing to the team score?
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Counting Differential compares each eligible player score with the
-              team&apos;s fourth-lowest score in the same event and round length.
-              Negative numbers indicate performance better than the counting-score cutoff.
-              Differential values are normalized to a 9-hole basis when 9-hole and 18-hole events are combined.
+              Counting Differential compares each player&apos;s score with the team&apos;s fourth-lowest score for that event. Negative is better. Nine- and 18-hole results are adjusted to a common 9-hole basis.
             </p>
           </div>
           <Link href="/statistics" className={secondaryButtonClassName}>
