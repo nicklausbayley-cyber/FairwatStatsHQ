@@ -55,12 +55,12 @@ function formatSplitValue(value: number | null) {
 }
 
 function formatPercentage(value: number | null) {
-  return value === null ? "No data" : `${Math.round(value * 100)}%`;
+  return value === null ? "—" : `${Math.round(value * 100)}%`;
 }
 
 function formatDifferential(value: number | null) {
   if (value === null) {
-    return "No data";
+    return "—";
   }
 
   if (Math.abs(value) < 0.05) {
@@ -152,13 +152,27 @@ function LineupPerformanceRow({
 }: {
   player: DashboardLineupPerformance;
 }) {
+  const hasBenchmark = player.qualifyingRounds > 0;
+
   return (
     <div
       className={cn(
         tableRowClassName,
-        "sm:grid-cols-2 lg:grid-cols-[1.5fr_1.05fr_0.95fr_0.85fr_0.95fr_0.95fr] lg:items-center"
+        "sm:grid-cols-2 lg:grid-cols-[0.45fr_1.45fr_1.05fr_0.95fr_0.85fr_0.95fr_1fr] lg:items-center",
+        !hasBenchmark && "bg-slate-50/40"
       )}
     >
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Rank
+        </p>
+        {player.rank === null ? (
+          <span className="font-semibold text-slate-400">—</span>
+        ) : (
+          <Badge tone={player.rank <= 5 ? "green" : "slate"}>#{player.rank}</Badge>
+        )}
+      </div>
+
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Player
@@ -169,11 +183,18 @@ function LineupPerformanceRow({
         >
           {player.playerName}
         </Link>
-        <p className="mt-1 text-xs text-slate-500 lg:hidden">
-          {player.qualifyingRounds} qualifying event
-          {player.qualifyingRounds === 1 ? "" : "s"}
-        </p>
+        {!hasBenchmark ? (
+          <p className="mt-1 text-xs font-medium text-slate-500">
+            No benchmark yet
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-slate-500 lg:hidden">
+            {player.qualifyingRounds} benchmarked event
+            {player.qualifyingRounds === 1 ? "" : "s"}
+          </p>
+        )}
       </div>
+
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Avg Score
@@ -192,10 +213,11 @@ function LineupPerformanceRow({
             </p>
           ) : null}
           {player.averageScore9 === null && player.averageScore18 === null ? (
-            <p>No data</p>
+            <p className="text-slate-400">No eligible rounds</p>
           ) : null}
         </div>
       </div>
+
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Counting Diff.
@@ -206,20 +228,24 @@ function LineupPerformanceRow({
             player.averageDifferential !== null &&
               player.averageDifferential <= 0
               ? "text-green-800"
-              : "text-slate-950"
+              : player.averageDifferential === null
+                ? "text-slate-400"
+                : "text-slate-950"
           )}
         >
           {formatDifferential(player.averageDifferential)}
         </p>
       </div>
+
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Counting %
         </p>
-        <p className="font-medium text-slate-800">
+        <p className={cn("font-medium", hasBenchmark ? "text-slate-800" : "text-slate-400")}>
           {formatPercentage(player.countingPercentage)}
         </p>
       </div>
+
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Last 5 Diff.
@@ -230,17 +256,24 @@ function LineupPerformanceRow({
             player.recentDifferential !== null &&
               player.recentDifferential <= 0
               ? "text-green-800"
-              : "text-slate-800"
+              : player.recentDifferential === null
+                ? "text-slate-400"
+                : "text-slate-800"
           )}
         >
           {formatDifferential(player.recentDifferential)}
         </p>
       </div>
+
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Trend
         </p>
-        <Badge tone={trendTone(player.trend)}>{trendLabel(player.trend)}</Badge>
+        {hasBenchmark ? (
+          <Badge tone={trendTone(player.trend)}>{trendLabel(player.trend)}</Badge>
+        ) : (
+          <span className="text-sm font-medium text-slate-400">Waiting for benchmark</span>
+        )}
       </div>
     </div>
   );
@@ -255,72 +288,44 @@ function RecentRoundRow({ round }: { round: DashboardRound }) {
       )}
     >
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Player
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Player</p>
         <p className="font-medium text-gray-950">{round.playerName}</p>
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Event
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Event</p>
         <p className="text-gray-700">{round.eventName ?? "No event"}</p>
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Played
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Played</p>
         <p className="text-gray-700">{formatDate(round.playedOn)}</p>
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Score
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Score</p>
         <p className="font-bold text-slate-950">{round.score}</p>
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Putts
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Putts</p>
         <p className="text-gray-700">{round.putts ?? "Not set"}</p>
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Fairways
-        </p>
-        <p className="text-gray-700">
-          {formatStatPair(round.fairwaysHit, round.fairwaysPossible)}
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Fairways</p>
+        <p className="text-gray-700">{formatStatPair(round.fairwaysHit, round.fairwaysPossible)}</p>
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          GIR
-        </p>
-        <p className="text-gray-700">
-          {formatStatPair(round.greensInRegulation, round.girPossible)}
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">GIR</p>
+        <p className="text-gray-700">{formatStatPair(round.greensInRegulation, round.girPossible)}</p>
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Penalties
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Penalties</p>
         <p className="text-gray-700">{round.penalties ?? "Not set"}</p>
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Three-putts
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Three-putts</p>
         <p className="text-gray-700">{round.threePutts ?? "Not set"}</p>
       </div>
-
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Actions
-        </p>
-        <Link
-          href={`/rounds/${round.id}`}
-          className={`${secondaryButtonClassName} px-3 py-1.5 text-xs`}
-        >
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Actions</p>
+        <Link href={`/rounds/${round.id}`} className={`${secondaryButtonClassName} px-3 py-1.5 text-xs`}>
           View Details
         </Link>
       </div>
@@ -351,83 +356,43 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
 
   return (
     <section className="space-y-6">
-      <DashboardHeader
-        teamName={dashboardData.teamName}
-        activeSeasonName={dashboardData.activeSeasonName}
-      />
+      <DashboardHeader teamName={dashboardData.teamName} activeSeasonName={dashboardData.activeSeasonName} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Total players"
-          value={summary.totalPlayers.toString()}
-          helper="Active roster records"
-        />
-        <StatCard
-          label="Total events"
-          value={summary.totalEvents.toString()}
-          helper="Season schedule records"
-        />
-        <StatCard
-          label="Total rounds"
-          value={summary.totalRounds.toString()}
-          helper="Submitted scorecards"
-        />
-        <SplitStatCard
-          label="Team average score"
-          nineHoleValue={summary.averageScore9}
-          eighteenHoleValue={summary.averageScore18}
-        />
-        <SplitStatCard
-          label="Team average putts"
-          nineHoleValue={summary.averagePutts9}
-          eighteenHoleValue={summary.averagePutts18}
-        />
-        <StatCard
-          label="Team fairway percentage"
-          value={formatPercentage(summary.fairwayPercentage)}
-          helper="Fairways hit / possible"
-        />
-        <StatCard
-          label="Team GIR percentage"
-          value={formatPercentage(summary.girPercentage)}
-          helper="Greens in regulation"
-        />
-        <SplitStatCard
-          label="Average penalties per round"
-          nineHoleValue={summary.averagePenalties9}
-          eighteenHoleValue={summary.averagePenalties18}
-        />
+        <StatCard label="Total players" value={summary.totalPlayers.toString()} helper="Active roster records" />
+        <StatCard label="Total events" value={summary.totalEvents.toString()} helper="Season schedule records" />
+        <StatCard label="Total rounds" value={summary.totalRounds.toString()} helper="Submitted scorecards" />
+        <SplitStatCard label="Team average score" nineHoleValue={summary.averageScore9} eighteenHoleValue={summary.averageScore18} />
+        <SplitStatCard label="Team average putts" nineHoleValue={summary.averagePutts9} eighteenHoleValue={summary.averagePutts18} />
+        <StatCard label="Team fairway percentage" value={formatPercentage(summary.fairwayPercentage)} helper="Fairways hit / possible" />
+        <StatCard label="Team GIR percentage" value={formatPercentage(summary.girPercentage)} helper="Greens in regulation" />
+        <SplitStatCard label="Average penalties per round" nineHoleValue={summary.averagePenalties9} eighteenHoleValue={summary.averagePenalties18} />
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 sm:p-8">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-              Lineup Performance
-            </p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">
-              Who is contributing to the team score?
-            </h2>
+            <p className="text-sm font-semibold uppercase tracking-wide text-green-700">Lineup Performance</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">Who is contributing to the team score?</h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Counting Differential compares each player&apos;s score with the team&apos;s fourth-lowest score for that event. Negative is better. Nine- and 18-hole results are adjusted to a common 9-hole basis.
+              Counting Differential compares each player&apos;s score with the team&apos;s fourth-lowest score for that event. Negative is better. Nine- and 18-hole results are adjusted to a common 9-hole basis. All active players stay visible so lineup movement is easy to track.
             </p>
           </div>
-          <Link href="/statistics" className={secondaryButtonClassName}>
-            View Full Statistics
-          </Link>
+          <Link href="/statistics" className={secondaryButtonClassName}>View Full Statistics</Link>
         </div>
       </div>
 
       {dashboardData.lineupPerformance.length === 0 ? (
-        <EmptyState message="Lineup Performance will appear after at least four eligible players post scores in the same event and round length." />
+        <EmptyState message="No active players found for this team yet." />
       ) : (
         <div className={tableShellClassName}>
           <div
             className={cn(
               tableHeaderClassName,
-              "lg:grid lg:grid-cols-[1.5fr_1.05fr_0.95fr_0.85fr_0.95fr_0.95fr]"
+              "lg:grid lg:grid-cols-[0.45fr_1.45fr_1.05fr_0.95fr_0.85fr_0.95fr_1fr]"
             )}
           >
+            <span>Rank</span>
             <span>Player</span>
             <span>Avg Score</span>
             <span>Counting Diff.</span>
@@ -447,12 +412,8 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
       <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 sm:p-8">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-              Scorecards
-            </p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">
-              Recent Rounds
-            </h2>
+            <p className="text-sm font-semibold uppercase tracking-wide text-green-700">Scorecards</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">Recent Rounds</h2>
           </div>
           <Badge>{dashboardData.recentRounds.length} shown</Badge>
         </div>
