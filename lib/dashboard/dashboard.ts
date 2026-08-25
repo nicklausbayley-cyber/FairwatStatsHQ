@@ -17,6 +17,8 @@ type RoundRow = {
   player_id: string;
   event_id: string | null;
   played_on: string;
+  holes: number;
+  counts_toward_lineup: boolean;
   score: number;
   putts: number | null;
   fairways_hit: number | null;
@@ -28,7 +30,7 @@ type RoundRow = {
 };
 
 const roundsSelect =
-  "id, player_id, event_id, played_on, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts";
+  "id, player_id, event_id, played_on, holes, counts_toward_lineup, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts";
 
 export type DashboardRound = {
   id: string;
@@ -56,12 +58,24 @@ export type DashboardSummary = {
   averagePenalties: number | null;
 };
 
+export type DashboardLineupPerformance = {
+  playerId: string;
+  playerName: string;
+  averageScore: number | null;
+  averageDifferential: number | null;
+  countingPercentage: number | null;
+  recentDifferential: number | null;
+  trend: "up" | "down" | "steady" | "new";
+  qualifyingRounds: number;
+};
+
 export type DashboardData =
   | {
       status: "ready";
       teamName: string;
       activeSeasonName: string | null;
       summary: DashboardSummary;
+      lineupPerformance: DashboardLineupPerformance[];
       recentRounds: DashboardRound[];
     }
   | {
@@ -115,6 +129,140 @@ function percentageFromTotals(
   }
 
   return totals.hit / totals.possible;
+}
+
+type DifferentialRound = {
+  round: RoundRow;
+  differential: number;
+};
+
+function buildLineupPerformance(
+  players: PlayerLookupRow[],
+  rounds: RoundRow[]
+): DashboardLineupPerformance[] {
+  const eligibleRounds = rounds.filter(
+    (round) =>
+      round.event_id !== null &&
+      round.counts_toward_lineup &&
+      (round.holes === 9 || round.holes === 18)
+  );
+  const roundsByEventAndFormat = new Map<string, RoundRow[]>();
+
+  eligibleRounds.forEach((round) => {
+    const key = `${round.event_id}:${round.holes}`;
+    const eventRounds = roundsByEventAndFormat.get(key) ?? [];
+    eventRounds.push(round);
+    roundsByEventAndFormat.set(key, eventRounds);
+  });
+
+  const differentialsByPlayer = new Map<string, DifferentialRound[]>();
+
+  roundsByEventAndFormat.forEach((eventRounds) => {
+    const bestRoundByPlayer = new Map<string, RoundRow>();
+
+    eventRounds.forEach((round) => {
+      const current = bestRoundByPlayer.get(round.player_id);
+
+      if (!current || round.score < current.score) {
+        bestRoundByPlayer.set(round.player_id, round);
+      }
+    });
+
+    const uniquePlayerRounds = Array.from(bestRoundByPlayer.values()).sort(
+      (a, b) => a.score - b.score
+    );
+
+    if (uniquePlayerRounds.length < 4) {
+      return;
+    }
+
+    const countingScore = uniquePlayerRounds[3].score;
+
+    uniquePlayerRounds.forEach((round) => {
+      const playerRounds = differentialsByPlayer.get(round.player_id) ?? [];
+      playerRounds.push({
+        round,
+        differential: round.score - countingScore
+      });
+      differentialsByPlayer.set(round.player_id, playerRounds);
+    });
+  });
+
+  return players
+    .map((player) => {
+      const playerDifferentials = [
+        ...(differentialsByPlayer.get(player.id) ?? [])
+      ].sort((a, b) => {
+        const dateComparison = b.round.played_on.localeCompare(a.round.played_on);
+
+        if (dateComparison !== 0) {
+          return dateComparison;
+        }
+
+        return b.round.id.localeCompare(a.round.id);
+      });
+      const recentRounds = playerDifferentials.slice(0, 5);
+      const priorRounds = playerDifferentials.slice(5, 10);
+      const recentDifferential = average(
+        recentRounds.map((entry) => entry.differential)
+      );
+      const priorDifferential = average(
+        priorRounds.map((entry) => entry.differential)
+      );
+      let trend: DashboardLineupPerformance["trend"] = "new";
+
+      if (recentDifferential !== null && priorDifferential !== null) {
+        const change = recentDifferential - priorDifferential;
+
+        if (change <= -0.5) {
+          trend = "up";
+        } else if (change >= 0.5) {
+          trend = "down";
+        } else {
+          trend = "steady";
+        }
+      } else if (playerDifferentials.length >= 2) {
+        trend = "steady";
+      }
+
+      return {
+        playerId: player.id,
+        playerName: `${player.first_name} ${player.last_name}`,
+        averageScore: average(
+          playerDifferentials.map((entry) => entry.round.score)
+        ),
+        averageDifferential: average(
+          playerDifferentials.map((entry) => entry.differential)
+        ),
+        countingPercentage:
+          playerDifferentials.length > 0
+            ? playerDifferentials.filter((entry) => entry.differential <= 0).length /
+              playerDifferentials.length
+            : null,
+        recentDifferential,
+        trend,
+        qualifyingRounds: playerDifferentials.length
+      };
+    })
+    .filter((player) => player.qualifyingRounds > 0)
+    .sort((a, b) => {
+      const aRecent = a.recentDifferential ?? Number.POSITIVE_INFINITY;
+      const bRecent = b.recentDifferential ?? Number.POSITIVE_INFINITY;
+
+      if (aRecent !== bRecent) {
+        return aRecent - bRecent;
+      }
+
+      const aSeason = a.averageDifferential ?? Number.POSITIVE_INFINITY;
+      const bSeason = b.averageDifferential ?? Number.POSITIVE_INFINITY;
+
+      if (aSeason !== bSeason) {
+        return aSeason - bSeason;
+      }
+
+      return a.playerName.localeCompare(b.playerName);
+    })
+    .slice(0, 6);
 }
 
 export async function getDashboardData(
@@ -227,6 +375,7 @@ export async function getDashboardData(
         ),
         averagePenalties: average(rounds.map((round) => round.penalties))
       },
+      lineupPerformance: buildLineupPerformance(players, rounds),
       recentRounds
     };
   } catch (error) {
