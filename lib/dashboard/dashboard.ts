@@ -5,6 +5,7 @@ type PlayerLookupRow = {
   id: string;
   first_name: string;
   last_name: string;
+  status: string;
 };
 
 type EventLookupRow = {
@@ -64,6 +65,7 @@ export type DashboardSummary = {
 export type DashboardLineupPerformance = {
   playerId: string;
   playerName: string;
+  rank: number | null;
   averageScore9: number | null;
   averageScore18: number | null;
   averageDifferential: number | null;
@@ -155,9 +157,14 @@ function buildLineupPerformance(
       round.counts_toward_lineup &&
       (round.holes === 9 || round.holes === 18)
   );
+  const eligibleRoundsByPlayer = new Map<string, RoundRow[]>();
   const roundsByEventAndFormat = new Map<string, RoundRow[]>();
 
   eligibleRounds.forEach((round) => {
+    const playerRounds = eligibleRoundsByPlayer.get(round.player_id) ?? [];
+    playerRounds.push(round);
+    eligibleRoundsByPlayer.set(round.player_id, playerRounds);
+
     const key = `${round.event_id}:${round.holes}`;
     const eventRounds = roundsByEventAndFormat.get(key) ?? [];
     eventRounds.push(round);
@@ -201,8 +208,15 @@ function buildLineupPerformance(
     });
   });
 
-  return players
+  const sortedPlayers = players
     .map((player) => {
+      const playerEligibleRounds = eligibleRoundsByPlayer.get(player.id) ?? [];
+      const nineHoleRounds = playerEligibleRounds.filter(
+        (round) => round.holes === 9
+      );
+      const eighteenHoleRounds = playerEligibleRounds.filter(
+        (round) => round.holes === 18
+      );
       const playerDifferentials = [
         ...(differentialsByPlayer.get(player.id) ?? [])
       ].sort((a, b) => {
@@ -214,12 +228,6 @@ function buildLineupPerformance(
 
         return b.round.id.localeCompare(a.round.id);
       });
-      const nineHoleRounds = playerDifferentials.filter(
-        (entry) => entry.round.holes === 9
-      );
-      const eighteenHoleRounds = playerDifferentials.filter(
-        (entry) => entry.round.holes === 18
-      );
       const recentRounds = playerDifferentials.slice(0, 5);
       const trendRecentRounds = playerDifferentials.slice(0, 3);
       const trendPriorRounds = playerDifferentials.slice(3, 6);
@@ -252,12 +260,9 @@ function buildLineupPerformance(
       return {
         playerId: player.id,
         playerName: `${player.first_name} ${player.last_name}`,
-        averageScore9: average(
-          nineHoleRounds.map((entry) => entry.round.score)
-        ),
-        averageScore18: average(
-          eighteenHoleRounds.map((entry) => entry.round.score)
-        ),
+        rank: null as number | null,
+        averageScore9: average(nineHoleRounds.map((round) => round.score)),
+        averageScore18: average(eighteenHoleRounds.map((round) => round.score)),
         averageDifferential: average(
           playerDifferentials.map((entry) => entry.normalizedDifferential)
         ),
@@ -271,7 +276,6 @@ function buildLineupPerformance(
         qualifyingRounds: playerDifferentials.length
       };
     })
-    .filter((player) => player.qualifyingRounds > 0)
     .sort((a, b) => {
       const aRecent = a.recentDifferential ?? Number.POSITIVE_INFINITY;
       const bRecent = b.recentDifferential ?? Number.POSITIVE_INFINITY;
@@ -287,9 +291,22 @@ function buildLineupPerformance(
         return aSeason - bSeason;
       }
 
+      const aScore = a.averageScore9 ?? a.averageScore18 ?? Number.POSITIVE_INFINITY;
+      const bScore = b.averageScore9 ?? b.averageScore18 ?? Number.POSITIVE_INFINITY;
+
+      if (aScore !== bScore) {
+        return aScore - bScore;
+      }
+
       return a.playerName.localeCompare(b.playerName);
-    })
-    .slice(0, 6);
+    });
+
+  let rank = 0;
+
+  return sortedPlayers.map((player) => ({
+    ...player,
+    rank: player.qualifyingRounds > 0 ? ++rank : null
+  }));
 }
 
 export async function getDashboardData(
@@ -312,7 +329,7 @@ export async function getDashboardData(
     const [playersResult, eventsResult, roundsResult] = await Promise.all([
       supabase
         .from("players")
-        .select("id, first_name, last_name")
+        .select("id, first_name, last_name, status")
         .eq("team_id", team.id)
         .order("last_name", { ascending: true })
         .order("first_name", { ascending: true }),
@@ -352,6 +369,7 @@ export async function getDashboardData(
     }
 
     const players = (playersResult.data ?? []) as PlayerLookupRow[];
+    const activePlayers = players.filter((player) => player.status !== "inactive");
     const events = (eventsResult.data ?? []) as EventLookupRow[];
     const rounds = (roundsResult.data ?? []) as RoundRow[];
     const nineHoleRounds = roundsForLength(rounds, 9);
@@ -387,7 +405,7 @@ export async function getDashboardData(
       teamName: team.name,
       activeSeasonName: activeSeason?.name ?? null,
       summary: {
-        totalPlayers: players.length,
+        totalPlayers: activePlayers.length,
         totalEvents: events.length,
         totalRounds: rounds.length,
         averageScore9: average(nineHoleRounds.map((round) => round.score)),
@@ -411,7 +429,7 @@ export async function getDashboardData(
           eighteenHoleRounds.map((round) => round.penalties)
         )
       },
-      lineupPerformance: buildLineupPerformance(players, rounds),
+      lineupPerformance: buildLineupPerformance(activePlayers, rounds),
       recentRounds
     };
   } catch (error) {
