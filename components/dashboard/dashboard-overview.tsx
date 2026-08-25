@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type {
   DashboardData,
+  DashboardLineupPerformance,
   DashboardRound,
   DashboardSummary
 } from "../../lib/dashboard/dashboard";
@@ -59,6 +60,18 @@ function formatPercentage(value: number | null) {
   return value === null ? "No data" : `${Math.round(value * 100)}%`;
 }
 
+function formatDifferential(value: number | null) {
+  if (value === null) {
+    return "No data";
+  }
+
+  if (Math.abs(value) < 0.05) {
+    return "0.0";
+  }
+
+  return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
+}
+
 function formatStatPair(value: number | null, possible: number | null) {
   if (value === null || possible === null) {
     return "Not set";
@@ -110,6 +123,118 @@ function buildMetricCards(summary: DashboardSummary): MetricCard[] {
       helper: "Rounds with penalties"
     }
   ];
+}
+
+function trendLabel(trend: DashboardLineupPerformance["trend"]) {
+  switch (trend) {
+    case "up":
+      return "↑ Improving";
+    case "down":
+      return "↓ Cooling";
+    case "steady":
+      return "→ Steady";
+    default:
+      return "New";
+  }
+}
+
+function trendTone(
+  trend: DashboardLineupPerformance["trend"]
+): "green" | "slate" | "amber" {
+  if (trend === "up") {
+    return "green";
+  }
+
+  if (trend === "down") {
+    return "amber";
+  }
+
+  return "slate";
+}
+
+function LineupPerformanceRow({
+  player
+}: {
+  player: DashboardLineupPerformance;
+}) {
+  return (
+    <div
+      className={cn(
+        tableRowClassName,
+        "sm:grid-cols-2 lg:grid-cols-[1.5fr_0.85fr_0.95fr_0.85fr_0.95fr_0.95fr] lg:items-center"
+      )}
+    >
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Player
+        </p>
+        <Link
+          href={`/players/${player.playerId}`}
+          className="font-semibold text-gray-950 hover:text-green-800"
+        >
+          {player.playerName}
+        </Link>
+        <p className="mt-1 text-xs text-slate-500 lg:hidden">
+          {player.qualifyingRounds} qualifying event
+          {player.qualifyingRounds === 1 ? "" : "s"}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Avg Score
+        </p>
+        <p className="font-medium text-slate-800">
+          {formatAverage(player.averageScore)}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Counting Diff.
+        </p>
+        <p
+          className={cn(
+            "text-lg font-bold",
+            player.averageDifferential !== null &&
+              player.averageDifferential <= 0
+              ? "text-green-800"
+              : "text-slate-950"
+          )}
+        >
+          {formatDifferential(player.averageDifferential)}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Counting %
+        </p>
+        <p className="font-medium text-slate-800">
+          {formatPercentage(player.countingPercentage)}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Last 5 Diff.
+        </p>
+        <p
+          className={cn(
+            "font-semibold",
+            player.recentDifferential !== null &&
+              player.recentDifferential <= 0
+              ? "text-green-800"
+              : "text-slate-800"
+          )}
+        >
+          {formatDifferential(player.recentDifferential)}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Trend
+        </p>
+        <Badge tone={trendTone(player.trend)}>{trendLabel(player.trend)}</Badge>
+      </div>
+    </div>
+  );
 }
 
 function RecentRoundRow({ round }: { round: DashboardRound }) {
@@ -227,6 +352,53 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
           />
         ))}
       </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 sm:p-8">
+        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
+              Lineup Performance
+            </p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">
+              Who is contributing to the team score?
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+              Counting Differential compares each eligible player score with the
+              team&apos;s fourth-lowest score in the same event and round length.
+              Negative numbers indicate performance better than the counting-score cutoff.
+            </p>
+          </div>
+          <Link href="/statistics" className={secondaryButtonClassName}>
+            View Full Statistics
+          </Link>
+        </div>
+      </div>
+
+      {dashboardData.lineupPerformance.length === 0 ? (
+        <EmptyState message="Lineup Performance will appear after at least four eligible players post scores in the same event and round length." />
+      ) : (
+        <div className={tableShellClassName}>
+          <div
+            className={cn(
+              tableHeaderClassName,
+              "lg:grid lg:grid-cols-[1.5fr_0.85fr_0.95fr_0.85fr_0.95fr_0.95fr]"
+            )}
+          >
+            <span>Player</span>
+            <span>Avg Score</span>
+            <span>Counting Diff.</span>
+            <span>Counting %</span>
+            <span>Last 5 Diff.</span>
+            <span>Trend</span>
+          </div>
+
+          <div className="divide-y divide-gray-100">
+            {dashboardData.lineupPerformance.map((player) => (
+              <LineupPerformanceRow key={player.playerId} player={player} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 sm:p-8">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
