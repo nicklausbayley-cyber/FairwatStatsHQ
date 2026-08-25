@@ -2,14 +2,14 @@ import Link from "next/link";
 import type {
   DashboardData,
   DashboardLineupPerformance,
-  DashboardRound,
-  DashboardSummary
+  DashboardRound
 } from "../../lib/dashboard/dashboard";
 import {
   Badge,
   EmptyState,
   PageHeader,
   StatCard,
+  appPanelClassName,
   cn,
   secondaryButtonClassName,
   tableHeaderClassName,
@@ -19,12 +19,6 @@ import {
 
 type DashboardOverviewProps = {
   dashboardData: DashboardData;
-};
-
-type MetricCard = {
-  label: string;
-  value: string;
-  helper: string;
 };
 
 const monthNames = [
@@ -56,6 +50,10 @@ function formatAverage(value: number | null) {
   return value === null ? "No data" : value.toFixed(1);
 }
 
+function formatSplitValue(value: number | null) {
+  return value === null ? "—" : value.toFixed(1);
+}
+
 function formatPercentage(value: number | null) {
   return value === null ? "No data" : `${Math.round(value * 100)}%`;
 }
@@ -72,27 +70,6 @@ function formatDifferential(value: number | null) {
   return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
 }
 
-function formatSplitAverage(
-  nineHoleValue: number | null,
-  eighteenHoleValue: number | null
-) {
-  if (nineHoleValue === null && eighteenHoleValue === null) {
-    return "No data";
-  }
-
-  const parts = [];
-
-  if (nineHoleValue !== null) {
-    parts.push(`9H ${nineHoleValue.toFixed(1)}`);
-  }
-
-  if (eighteenHoleValue !== null) {
-    parts.push(`18H ${eighteenHoleValue.toFixed(1)}`);
-  }
-
-  return parts.join(" · ");
-}
-
 function formatStatPair(value: number | null, possible: number | null) {
   if (value === null || possible === null) {
     return "Not set";
@@ -101,52 +78,46 @@ function formatStatPair(value: number | null, possible: number | null) {
   return `${value} / ${possible}`;
 }
 
-function buildMetricCards(summary: DashboardSummary): MetricCard[] {
-  return [
-    {
-      label: "Total players",
-      value: summary.totalPlayers.toString(),
-      helper: "Active roster records"
-    },
-    {
-      label: "Total events",
-      value: summary.totalEvents.toString(),
-      helper: "Season schedule records"
-    },
-    {
-      label: "Total rounds",
-      value: summary.totalRounds.toString(),
-      helper: "Submitted scorecards"
-    },
-    {
-      label: "Team average score",
-      value: formatSplitAverage(summary.averageScore9, summary.averageScore18),
-      helper: "9-hole and 18-hole averages shown separately"
-    },
-    {
-      label: "Team average putts",
-      value: formatSplitAverage(summary.averagePutts9, summary.averagePutts18),
-      helper: "9-hole and 18-hole averages shown separately"
-    },
-    {
-      label: "Team fairway percentage",
-      value: formatPercentage(summary.fairwayPercentage),
-      helper: "Fairways hit / possible"
-    },
-    {
-      label: "Team GIR percentage",
-      value: formatPercentage(summary.girPercentage),
-      helper: "Greens in regulation"
-    },
-    {
-      label: "Average penalties per round",
-      value: formatSplitAverage(
-        summary.averagePenalties9,
-        summary.averagePenalties18
-      ),
-      helper: "9-hole and 18-hole averages shown separately"
-    }
-  ];
+function SplitStatCard({
+  label,
+  nineHoleValue,
+  eighteenHoleValue
+}: {
+  label: string;
+  nineHoleValue: number | null;
+  eighteenHoleValue: number | null;
+}) {
+  return (
+    <div
+      className={cn(
+        appPanelClassName,
+        "relative overflow-hidden p-5 transition hover:-translate-y-0.5 hover:border-green-200 hover:shadow-md"
+      )}
+    >
+      <div className="absolute inset-x-0 top-0 h-1 bg-green-700" aria-hidden="true" />
+      <p className="text-sm font-semibold text-slate-500">{label}</p>
+
+      <div className="mt-4 grid grid-cols-2 divide-x divide-slate-200">
+        <div className="pr-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            9H
+          </p>
+          <p className="mt-1 text-3xl font-bold tracking-tight text-slate-950 tabular-nums">
+            {formatSplitValue(nineHoleValue)}
+          </p>
+        </div>
+
+        <div className="pl-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            18H
+          </p>
+          <p className="mt-1 text-3xl font-bold tracking-tight text-slate-950 tabular-nums">
+            {formatSplitValue(eighteenHoleValue)}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function trendLabel(trend: DashboardLineupPerformance["trend"]) {
@@ -209,10 +180,16 @@ function LineupPerformanceRow({
         </p>
         <div className="space-y-1 font-medium text-slate-800">
           {player.averageScore9 !== null ? (
-            <p><span className="text-xs font-semibold text-slate-500">9H</span> {formatAverage(player.averageScore9)}</p>
+            <p>
+              <span className="text-xs font-semibold text-slate-500">9H</span>{" "}
+              {formatAverage(player.averageScore9)}
+            </p>
           ) : null}
           {player.averageScore18 !== null ? (
-            <p><span className="text-xs font-semibold text-slate-500">18H</span> {formatAverage(player.averageScore18)}</p>
+            <p>
+              <span className="text-xs font-semibold text-slate-500">18H</span>{" "}
+              {formatAverage(player.averageScore18)}
+            </p>
           ) : null}
           {player.averageScore9 === null && player.averageScore18 === null ? (
             <p>No data</p>
@@ -271,7 +248,12 @@ function LineupPerformanceRow({
 
 function RecentRoundRow({ round }: { round: DashboardRound }) {
   return (
-    <div className={cn(tableRowClassName, "lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr_0.9fr] lg:items-center")}>
+    <div
+      className={cn(
+        tableRowClassName,
+        "lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr_0.9fr] lg:items-center"
+      )}
+    >
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Player
@@ -365,7 +347,7 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
     );
   }
 
-  const metricCards = buildMetricCards(dashboardData.summary);
+  const summary = dashboardData.summary;
 
   return (
     <section className="space-y-6">
@@ -375,14 +357,46 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {metricCards.map((metric) => (
-          <StatCard
-            key={metric.label}
-            label={metric.label}
-            value={metric.value}
-            helper={metric.helper}
-          />
-        ))}
+        <StatCard
+          label="Total players"
+          value={summary.totalPlayers.toString()}
+          helper="Active roster records"
+        />
+        <StatCard
+          label="Total events"
+          value={summary.totalEvents.toString()}
+          helper="Season schedule records"
+        />
+        <StatCard
+          label="Total rounds"
+          value={summary.totalRounds.toString()}
+          helper="Submitted scorecards"
+        />
+        <SplitStatCard
+          label="Team average score"
+          nineHoleValue={summary.averageScore9}
+          eighteenHoleValue={summary.averageScore18}
+        />
+        <SplitStatCard
+          label="Team average putts"
+          nineHoleValue={summary.averagePutts9}
+          eighteenHoleValue={summary.averagePutts18}
+        />
+        <StatCard
+          label="Team fairway percentage"
+          value={formatPercentage(summary.fairwayPercentage)}
+          helper="Fairways hit / possible"
+        />
+        <StatCard
+          label="Team GIR percentage"
+          value={formatPercentage(summary.girPercentage)}
+          helper="Greens in regulation"
+        />
+        <SplitStatCard
+          label="Average penalties per round"
+          nineHoleValue={summary.averagePenalties9}
+          eighteenHoleValue={summary.averagePenalties18}
+        />
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 sm:p-8">
@@ -454,7 +468,12 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
         />
       ) : (
         <div className={tableShellClassName}>
-          <div className={cn(tableHeaderClassName, "lg:grid lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr_0.9fr]")}>
+          <div
+            className={cn(
+              tableHeaderClassName,
+              "lg:grid lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr_0.9fr]"
+            )}
+          >
             <span>Player</span>
             <span>Event</span>
             <span>Played</span>
