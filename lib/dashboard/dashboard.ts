@@ -190,8 +190,7 @@ function buildLineupPerformance(
     uniquePlayerRounds.forEach((round) => {
       const playerRounds = differentialsByPlayer.get(round.player_id) ?? [];
       const rawDifferential = round.score - countingScore;
-      const normalizedDifferential =
-        rawDifferential * (9 / round.holes);
+      const normalizedDifferential = rawDifferential * (9 / round.holes);
 
       playerRounds.push({
         round,
@@ -222,27 +221,32 @@ function buildLineupPerformance(
         (entry) => entry.round.holes === 18
       );
       const recentRounds = playerDifferentials.slice(0, 5);
-      const priorRounds = playerDifferentials.slice(5, 10);
+      const trendRecentRounds = playerDifferentials.slice(0, 3);
+      const trendPriorRounds = playerDifferentials.slice(3, 6);
       const recentDifferential = average(
         recentRounds.map((entry) => entry.normalizedDifferential)
       );
-      const priorDifferential = average(
-        priorRounds.map((entry) => entry.normalizedDifferential)
-      );
       let trend: DashboardLineupPerformance["trend"] = "new";
 
-      if (recentDifferential !== null && priorDifferential !== null) {
-        const change = recentDifferential - priorDifferential;
+      if (trendRecentRounds.length === 3 && trendPriorRounds.length === 3) {
+        const trendRecentDifferential = average(
+          trendRecentRounds.map((entry) => entry.normalizedDifferential)
+        );
+        const trendPriorDifferential = average(
+          trendPriorRounds.map((entry) => entry.normalizedDifferential)
+        );
 
-        if (change <= -0.5) {
-          trend = "up";
-        } else if (change >= 0.5) {
-          trend = "down";
-        } else {
-          trend = "steady";
+        if (trendRecentDifferential !== null && trendPriorDifferential !== null) {
+          const change = trendRecentDifferential - trendPriorDifferential;
+
+          if (change <= -0.5) {
+            trend = "up";
+          } else if (change >= 0.5) {
+            trend = "down";
+          } else {
+            trend = "steady";
+          }
         }
-      } else if (playerDifferentials.length >= 2) {
-        trend = "steady";
       }
 
       return {
