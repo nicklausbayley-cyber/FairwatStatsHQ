@@ -110,3 +110,19 @@ format separation, missing/zero/partial stats, weighted percentages, duplicates,
 counting eligibility, severity ranking, pagination, staff access, team/season
 boundaries, and rendered-page content. A real production build requires the
 app's existing Supabase environment variables.
+
+## Completing the Riverside demo baseline
+
+The existing Riverside coach demo contains five outings per format. Run
+`database/demo/add-coach-insights-validation-outings.sql` in the Supabase SQL
+Editor to append one clearly labeled synthetic practice outing per format,
+then refresh the preview. It checks the exact demo team ID, name, school,
+contact address, coach profile, and active season before changing any data.
+The operation is transactional and reruns skip the two existing validation
+events. It never replaces existing events, players, rounds, or hole scores.
+
+The new summary rounds include complete stats with deliberate changes for
+testing positive cards and practice priorities. They are labeled synthetic in
+event names and round notes, marked ineligible for lineup qualification, and
+excluded from low-four competition estimates because the events are practice.
+This script is optional demo data, not a database migration or customer data.
