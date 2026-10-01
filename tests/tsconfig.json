@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": false,
+    "incremental": false,
+    "rootDir": "..",
+    "outDir": "../.test-build"
+  },
+  "include": ["coach-insights.test.ts"],
+  "exclude": ["../node_modules", "../.test-build"]
+}

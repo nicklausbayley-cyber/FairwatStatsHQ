@@ -27,3 +27,7 @@ pnpm-debug.log*
 # Supabase local
 .branches
 .temp
+
+# Compiled analytics tests and local visual checks
+.test-build/
+*.tsbuildinfo

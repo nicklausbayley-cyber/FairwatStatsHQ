@@ -96,6 +96,7 @@ function revalidateRosterViews() {
   revalidatePath("/roster");
   revalidatePath("/players");
   revalidatePath("/statistics");
+  revalidatePath("/coach-insights");
 }
 
 export async function POST(request: Request) {
