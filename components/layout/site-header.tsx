@@ -22,6 +22,7 @@ const staffNavItems = [
   { href: "/events", label: "Events" },
   { href: "/courses", label: "Courses" },
   { href: "/statistics", label: "Statistics" },
+  { href: "/coach-insights", label: "Coach Insights" },
   { href: "/settings", label: "Settings" }
 ];
 

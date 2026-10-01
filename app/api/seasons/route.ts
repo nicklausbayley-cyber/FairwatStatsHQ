@@ -40,6 +40,7 @@ function revalidateSeasonViews() {
   revalidatePath("/events");
   revalidatePath("/enter-score");
   revalidatePath("/statistics");
+  revalidatePath("/coach-insights");
   revalidatePath("/players");
   revalidatePath("/players/[id]", "page");
 }

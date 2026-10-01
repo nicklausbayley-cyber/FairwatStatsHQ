@@ -45,6 +45,11 @@ body {
     print-color-adjust: exact;
   }
 
+  .coach-insights-report {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .year-end-report .avoid-print-break {
     break-inside: avoid;
     page-break-inside: avoid;

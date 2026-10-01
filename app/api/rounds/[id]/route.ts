@@ -285,6 +285,7 @@ function revalidateRoundViews(
 ) {
   revalidatePath("/dashboard");
   revalidatePath("/statistics");
+  revalidatePath("/coach-insights");
   revalidatePath("/players");
   revalidatePath("/players/[id]", "page");
   revalidatePath(`/players/${playerId}`);

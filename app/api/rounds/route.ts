@@ -372,6 +372,7 @@ export async function POST(request: Request) {
 
     revalidatePath("/dashboard");
     revalidatePath("/statistics");
+    revalidatePath("/coach-insights");
     revalidatePath("/players");
     revalidatePath("/players/[id]", "page");
     revalidatePath("/roster");
