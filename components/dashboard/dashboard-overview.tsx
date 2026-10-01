@@ -1,14 +1,15 @@
 import Link from "next/link";
 import type {
   DashboardData,
-  DashboardRound,
-  DashboardSummary
+  DashboardLineupPerformance,
+  DashboardRound
 } from "../../lib/dashboard/dashboard";
 import {
   Badge,
   EmptyState,
   PageHeader,
   StatCard,
+  appPanelClassName,
   cn,
   secondaryButtonClassName,
   tableHeaderClassName,
@@ -18,12 +19,6 @@ import {
 
 type DashboardOverviewProps = {
   dashboardData: DashboardData;
-};
-
-type MetricCard = {
-  label: string;
-  value: string;
-  helper: string;
 };
 
 const monthNames = [
@@ -55,8 +50,24 @@ function formatAverage(value: number | null) {
   return value === null ? "No data" : value.toFixed(1);
 }
 
+function formatSplitValue(value: number | null) {
+  return value === null ? "—" : value.toFixed(1);
+}
+
 function formatPercentage(value: number | null) {
-  return value === null ? "No data" : `${Math.round(value * 100)}%`;
+  return value === null ? "—" : `${Math.round(value * 100)}%`;
+}
+
+function formatDifferential(value: number | null) {
+  if (value === null) {
+    return "—";
+  }
+
+  if (Math.abs(value) < 0.05) {
+    return "0.0";
+  }
+
+  return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
 }
 
 function formatStatPair(value: number | null, possible: number | null) {
@@ -67,121 +78,254 @@ function formatStatPair(value: number | null, possible: number | null) {
   return `${value} / ${possible}`;
 }
 
-function buildMetricCards(summary: DashboardSummary): MetricCard[] {
-  return [
-    {
-      label: "Total players",
-      value: summary.totalPlayers.toString(),
-      helper: "Active roster records"
-    },
-    {
-      label: "Total events",
-      value: summary.totalEvents.toString(),
-      helper: "Season schedule records"
-    },
-    {
-      label: "Total rounds",
-      value: summary.totalRounds.toString(),
-      helper: "Submitted scorecards"
-    },
-    {
-      label: "Team average score",
-      value: formatAverage(summary.averageScore),
-      helper: "Rounds with scores"
-    },
-    {
-      label: "Team average putts",
-      value: formatAverage(summary.averagePutts),
-      helper: "Rounds with putts"
-    },
-    {
-      label: "Team fairway percentage",
-      value: formatPercentage(summary.fairwayPercentage),
-      helper: "Fairways hit / possible"
-    },
-    {
-      label: "Team GIR percentage",
-      value: formatPercentage(summary.girPercentage),
-      helper: "Greens in regulation"
-    },
-    {
-      label: "Average penalties per round",
-      value: formatAverage(summary.averagePenalties),
-      helper: "Rounds with penalties"
-    }
-  ];
+function SplitStatCard({
+  label,
+  nineHoleValue,
+  eighteenHoleValue
+}: {
+  label: string;
+  nineHoleValue: number | null;
+  eighteenHoleValue: number | null;
+}) {
+  return (
+    <div
+      className={cn(
+        appPanelClassName,
+        "relative overflow-hidden p-5 transition hover:-translate-y-0.5 hover:border-green-200 hover:shadow-md"
+      )}
+    >
+      <div className="absolute inset-x-0 top-0 h-1 bg-green-700" aria-hidden="true" />
+      <p className="text-sm font-semibold text-slate-500">{label}</p>
+
+      <div className="mt-4 grid grid-cols-2 divide-x divide-slate-200">
+        <div className="pr-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            9H
+          </p>
+          <p className="mt-1 text-3xl font-bold tracking-tight text-slate-950 tabular-nums">
+            {formatSplitValue(nineHoleValue)}
+          </p>
+        </div>
+
+        <div className="pl-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            18H
+          </p>
+          <p className="mt-1 text-3xl font-bold tracking-tight text-slate-950 tabular-nums">
+            {formatSplitValue(eighteenHoleValue)}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function RecentRoundRow({ round }: { round: DashboardRound }) {
+function trendLabel(trend: DashboardLineupPerformance["trend"]) {
+  switch (trend) {
+    case "up":
+      return "↑ Improving";
+    case "down":
+      return "↓ Cooling";
+    case "steady":
+      return "→ Steady";
+    default:
+      return "Building Trend";
+  }
+}
+
+function trendTone(
+  trend: DashboardLineupPerformance["trend"]
+): "green" | "slate" | "amber" {
+  if (trend === "up") {
+    return "green";
+  }
+
+  if (trend === "down") {
+    return "amber";
+  }
+
+  return "slate";
+}
+
+function LineupPerformanceRow({
+  player
+}: {
+  player: DashboardLineupPerformance;
+}) {
+  const hasBenchmark = player.qualifyingRounds > 0;
+
   return (
-    <div className={cn(tableRowClassName, "lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr_0.9fr] lg:items-center")}>
+    <div
+      className={cn(
+        tableRowClassName,
+        "sm:grid-cols-2 lg:grid-cols-[0.45fr_1.45fr_1.05fr_0.95fr_0.85fr_0.95fr_1fr] lg:items-center",
+        !hasBenchmark && "bg-slate-50/40"
+      )}
+    >
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Rank
+        </p>
+        {player.rank === null ? (
+          <span className="font-semibold text-slate-400">—</span>
+        ) : (
+          <Badge tone={player.rank <= 5 ? "green" : "slate"}>#{player.rank}</Badge>
+        )}
+      </div>
+
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Player
         </p>
-        <p className="font-medium text-gray-950">{round.playerName}</p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Event
-        </p>
-        <p className="text-gray-700">{round.eventName ?? "No event"}</p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Played
-        </p>
-        <p className="text-gray-700">{formatDate(round.playedOn)}</p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Score
-        </p>
-        <p className="font-bold text-slate-950">{round.score}</p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Putts
-        </p>
-        <p className="text-gray-700">{round.putts ?? "Not set"}</p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Fairways
-        </p>
-        <p className="text-gray-700">
-          {formatStatPair(round.fairwaysHit, round.fairwaysPossible)}
-        </p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          GIR
-        </p>
-        <p className="text-gray-700">
-          {formatStatPair(round.greensInRegulation, round.girPossible)}
-        </p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Penalties
-        </p>
-        <p className="text-gray-700">{round.penalties ?? "Not set"}</p>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Three-putts
-        </p>
-        <p className="text-gray-700">{round.threePutts ?? "Not set"}</p>
+        <Link
+          href={`/players/${player.playerId}`}
+          className="font-semibold text-gray-950 hover:text-green-800"
+        >
+          {player.playerName}
+        </Link>
+        {!hasBenchmark ? (
+          <p className="mt-1 text-xs font-medium text-slate-500">
+            No benchmark yet
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-slate-500 lg:hidden">
+            {player.qualifyingRounds} benchmarked event
+            {player.qualifyingRounds === 1 ? "" : "s"}
+          </p>
+        )}
       </div>
 
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
-          Actions
+          Avg Score
         </p>
-        <Link
-          href={`/rounds/${round.id}`}
-          className={`${secondaryButtonClassName} px-3 py-1.5 text-xs`}
+        <div className="space-y-1 font-medium text-slate-800">
+          {player.averageScore9 !== null ? (
+            <p>
+              <span className="text-xs font-semibold text-slate-500">9H</span>{" "}
+              {formatAverage(player.averageScore9)}
+            </p>
+          ) : null}
+          {player.averageScore18 !== null ? (
+            <p>
+              <span className="text-xs font-semibold text-slate-500">18H</span>{" "}
+              {formatAverage(player.averageScore18)}
+            </p>
+          ) : null}
+          {player.averageScore9 === null && player.averageScore18 === null ? (
+            <p className="text-slate-400">No eligible rounds</p>
+          ) : null}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Counting Diff.
+        </p>
+        <p
+          className={cn(
+            "text-lg font-bold",
+            player.averageDifferential !== null &&
+              player.averageDifferential <= 0
+              ? "text-green-800"
+              : player.averageDifferential === null
+                ? "text-slate-400"
+                : "text-slate-950"
+          )}
         >
+          {formatDifferential(player.averageDifferential)}
+        </p>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Counting %
+        </p>
+        <p className={cn("font-medium", hasBenchmark ? "text-slate-800" : "text-slate-400")}>
+          {formatPercentage(player.countingPercentage)}
+        </p>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Last 5 Diff.
+        </p>
+        <p
+          className={cn(
+            "font-semibold",
+            player.recentDifferential !== null &&
+              player.recentDifferential <= 0
+              ? "text-green-800"
+              : player.recentDifferential === null
+                ? "text-slate-400"
+                : "text-slate-800"
+          )}
+        >
+          {formatDifferential(player.recentDifferential)}
+        </p>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
+          Trend
+        </p>
+        {hasBenchmark ? (
+          <Badge tone={trendTone(player.trend)}>{trendLabel(player.trend)}</Badge>
+        ) : (
+          <span className="text-sm font-medium text-slate-400">Waiting for benchmark</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RecentRoundRow({ round }: { round: DashboardRound }) {
+  return (
+    <div
+      className={cn(
+        tableRowClassName,
+        "lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr_0.9fr] lg:items-center"
+      )}
+    >
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Player</p>
+        <p className="font-medium text-gray-950">{round.playerName}</p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Event</p>
+        <p className="text-gray-700">{round.eventName ?? "No event"}</p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Played</p>
+        <p className="text-gray-700">{formatDate(round.playedOn)}</p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Score</p>
+        <p className="font-bold text-slate-950">{round.score}</p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Putts</p>
+        <p className="text-gray-700">{round.putts ?? "Not set"}</p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Fairways</p>
+        <p className="text-gray-700">{formatStatPair(round.fairwaysHit, round.fairwaysPossible)}</p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">GIR</p>
+        <p className="text-gray-700">{formatStatPair(round.greensInRegulation, round.girPossible)}</p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Penalties</p>
+        <p className="text-gray-700">{round.penalties ?? "Not set"}</p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Three-putts</p>
+        <p className="text-gray-700">{round.threePutts ?? "Not set"}</p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">Actions</p>
+        <Link href={`/rounds/${round.id}`} className={`${secondaryButtonClassName} px-3 py-1.5 text-xs`}>
           View Details
         </Link>
       </div>
@@ -208,35 +352,68 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
     );
   }
 
-  const metricCards = buildMetricCards(dashboardData.summary);
+  const summary = dashboardData.summary;
 
   return (
     <section className="space-y-6">
-      <DashboardHeader
-        teamName={dashboardData.teamName}
-        activeSeasonName={dashboardData.activeSeasonName}
-      />
+      <DashboardHeader teamName={dashboardData.teamName} activeSeasonName={dashboardData.activeSeasonName} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {metricCards.map((metric) => (
-          <StatCard
-            key={metric.label}
-            label={metric.label}
-            value={metric.value}
-            helper={metric.helper}
-          />
-        ))}
+        <StatCard label="Total players" value={summary.totalPlayers.toString()} helper="Active roster records" />
+        <StatCard label="Total events" value={summary.totalEvents.toString()} helper="Season schedule records" />
+        <StatCard label="Total rounds" value={summary.totalRounds.toString()} helper="Submitted scorecards" />
+        <SplitStatCard label="Team average score" nineHoleValue={summary.averageScore9} eighteenHoleValue={summary.averageScore18} />
+        <SplitStatCard label="Team average putts" nineHoleValue={summary.averagePutts9} eighteenHoleValue={summary.averagePutts18} />
+        <StatCard label="Team fairway percentage" value={formatPercentage(summary.fairwayPercentage)} helper="Fairways hit / possible" />
+        <StatCard label="Team GIR percentage" value={formatPercentage(summary.girPercentage)} helper="Greens in regulation" />
+        <SplitStatCard label="Average penalties per round" nineHoleValue={summary.averagePenalties9} eighteenHoleValue={summary.averagePenalties18} />
       </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 sm:p-8">
+        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-green-700">Lineup Performance</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">Who is contributing to the team score?</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+              Counting Differential compares each player&apos;s score with the team&apos;s fourth-lowest score for that event. Negative is better. Nine- and 18-hole results are adjusted to a common 9-hole basis. All active players stay visible so lineup movement is easy to track.
+            </p>
+          </div>
+          <Link href="/statistics" className={secondaryButtonClassName}>View Full Statistics</Link>
+        </div>
+      </div>
+
+      {dashboardData.lineupPerformance.length === 0 ? (
+        <EmptyState message="No active players found for this team yet." />
+      ) : (
+        <div className={tableShellClassName}>
+          <div
+            className={cn(
+              tableHeaderClassName,
+              "lg:grid lg:grid-cols-[0.45fr_1.45fr_1.05fr_0.95fr_0.85fr_0.95fr_1fr]"
+            )}
+          >
+            <span>Rank</span>
+            <span>Player</span>
+            <span>Avg Score</span>
+            <span>Counting Diff.</span>
+            <span>Counting %</span>
+            <span>Last 5 Diff.</span>
+            <span>Trend</span>
+          </div>
+
+          <div className="divide-y divide-gray-100">
+            {dashboardData.lineupPerformance.map((player) => (
+              <LineupPerformanceRow key={player.playerId} player={player} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 sm:p-8">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
-              Scorecards
-            </p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">
-              Recent Rounds
-            </h2>
+            <p className="text-sm font-semibold uppercase tracking-wide text-green-700">Scorecards</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-950">Recent Rounds</h2>
           </div>
           <Badge>{dashboardData.recentRounds.length} shown</Badge>
         </div>
@@ -252,7 +429,12 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
         />
       ) : (
         <div className={tableShellClassName}>
-          <div className={cn(tableHeaderClassName, "lg:grid lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr_0.9fr]")}>
+          <div
+            className={cn(
+              tableHeaderClassName,
+              "lg:grid lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr_0.9fr]"
+            )}
+          >
             <span>Player</span>
             <span>Event</span>
             <span>Played</span>

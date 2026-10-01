@@ -5,6 +5,7 @@ type PlayerLookupRow = {
   id: string;
   first_name: string;
   last_name: string;
+  status: string;
 };
 
 type EventLookupRow = {
@@ -17,6 +18,8 @@ type RoundRow = {
   player_id: string;
   event_id: string | null;
   played_on: string;
+  holes: number;
+  counts_toward_lineup: boolean;
   score: number;
   putts: number | null;
   fairways_hit: number | null;
@@ -28,7 +31,7 @@ type RoundRow = {
 };
 
 const roundsSelect =
-  "id, player_id, event_id, played_on, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts";
+  "id, player_id, event_id, played_on, holes, counts_toward_lineup, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts";
 
 export type DashboardRound = {
   id: string;
@@ -49,11 +52,27 @@ export type DashboardSummary = {
   totalPlayers: number;
   totalEvents: number;
   totalRounds: number;
-  averageScore: number | null;
-  averagePutts: number | null;
+  averageScore9: number | null;
+  averageScore18: number | null;
+  averagePutts9: number | null;
+  averagePutts18: number | null;
   fairwayPercentage: number | null;
   girPercentage: number | null;
-  averagePenalties: number | null;
+  averagePenalties9: number | null;
+  averagePenalties18: number | null;
+};
+
+export type DashboardLineupPerformance = {
+  playerId: string;
+  playerName: string;
+  rank: number | null;
+  averageScore9: number | null;
+  averageScore18: number | null;
+  averageDifferential: number | null;
+  countingPercentage: number | null;
+  recentDifferential: number | null;
+  trend: "up" | "down" | "steady" | "new";
+  qualifyingRounds: number;
 };
 
 export type DashboardData =
@@ -62,6 +81,7 @@ export type DashboardData =
       teamName: string;
       activeSeasonName: string | null;
       summary: DashboardSummary;
+      lineupPerformance: DashboardLineupPerformance[];
       recentRounds: DashboardRound[];
     }
   | {
@@ -86,6 +106,10 @@ function average(values: Array<number | null | undefined>) {
 
   const total = validValues.reduce((sum, value) => sum + value, 0);
   return total / validValues.length;
+}
+
+function roundsForLength(rounds: RoundRow[], holes: 9 | 18) {
+  return rounds.filter((round) => round.holes === holes);
 }
 
 function percentageFromTotals(
@@ -117,6 +141,174 @@ function percentageFromTotals(
   return totals.hit / totals.possible;
 }
 
+type DifferentialRound = {
+  round: RoundRow;
+  rawDifferential: number;
+  normalizedDifferential: number;
+};
+
+function buildLineupPerformance(
+  players: PlayerLookupRow[],
+  rounds: RoundRow[]
+): DashboardLineupPerformance[] {
+  const eligibleRounds = rounds.filter(
+    (round) =>
+      round.event_id !== null &&
+      round.counts_toward_lineup &&
+      (round.holes === 9 || round.holes === 18)
+  );
+  const eligibleRoundsByPlayer = new Map<string, RoundRow[]>();
+  const roundsByEventAndFormat = new Map<string, RoundRow[]>();
+
+  eligibleRounds.forEach((round) => {
+    const playerRounds = eligibleRoundsByPlayer.get(round.player_id) ?? [];
+    playerRounds.push(round);
+    eligibleRoundsByPlayer.set(round.player_id, playerRounds);
+
+    const key = `${round.event_id}:${round.holes}`;
+    const eventRounds = roundsByEventAndFormat.get(key) ?? [];
+    eventRounds.push(round);
+    roundsByEventAndFormat.set(key, eventRounds);
+  });
+
+  const differentialsByPlayer = new Map<string, DifferentialRound[]>();
+
+  roundsByEventAndFormat.forEach((eventRounds) => {
+    const bestRoundByPlayer = new Map<string, RoundRow>();
+
+    eventRounds.forEach((round) => {
+      const current = bestRoundByPlayer.get(round.player_id);
+
+      if (!current || round.score < current.score) {
+        bestRoundByPlayer.set(round.player_id, round);
+      }
+    });
+
+    const uniquePlayerRounds = Array.from(bestRoundByPlayer.values()).sort(
+      (a, b) => a.score - b.score
+    );
+
+    if (uniquePlayerRounds.length < 4) {
+      return;
+    }
+
+    const countingScore = uniquePlayerRounds[3].score;
+
+    uniquePlayerRounds.forEach((round) => {
+      const playerRounds = differentialsByPlayer.get(round.player_id) ?? [];
+      const rawDifferential = round.score - countingScore;
+      const normalizedDifferential = rawDifferential * (9 / round.holes);
+
+      playerRounds.push({
+        round,
+        rawDifferential,
+        normalizedDifferential
+      });
+      differentialsByPlayer.set(round.player_id, playerRounds);
+    });
+  });
+
+  const sortedPlayers = players
+    .map((player) => {
+      const playerEligibleRounds = eligibleRoundsByPlayer.get(player.id) ?? [];
+      const nineHoleRounds = playerEligibleRounds.filter(
+        (round) => round.holes === 9
+      );
+      const eighteenHoleRounds = playerEligibleRounds.filter(
+        (round) => round.holes === 18
+      );
+      const playerDifferentials = [
+        ...(differentialsByPlayer.get(player.id) ?? [])
+      ].sort((a, b) => {
+        const dateComparison = b.round.played_on.localeCompare(a.round.played_on);
+
+        if (dateComparison !== 0) {
+          return dateComparison;
+        }
+
+        return b.round.id.localeCompare(a.round.id);
+      });
+      const recentRounds = playerDifferentials.slice(0, 5);
+      const trendRecentRounds = playerDifferentials.slice(0, 3);
+      const trendPriorRounds = playerDifferentials.slice(3, 6);
+      const recentDifferential = average(
+        recentRounds.map((entry) => entry.normalizedDifferential)
+      );
+      let trend: DashboardLineupPerformance["trend"] = "new";
+
+      if (trendRecentRounds.length === 3 && trendPriorRounds.length === 3) {
+        const trendRecentDifferential = average(
+          trendRecentRounds.map((entry) => entry.normalizedDifferential)
+        );
+        const trendPriorDifferential = average(
+          trendPriorRounds.map((entry) => entry.normalizedDifferential)
+        );
+
+        if (trendRecentDifferential !== null && trendPriorDifferential !== null) {
+          const change = trendRecentDifferential - trendPriorDifferential;
+
+          if (change <= -0.5) {
+            trend = "up";
+          } else if (change >= 0.5) {
+            trend = "down";
+          } else {
+            trend = "steady";
+          }
+        }
+      }
+
+      return {
+        playerId: player.id,
+        playerName: `${player.first_name} ${player.last_name}`,
+        rank: null as number | null,
+        averageScore9: average(nineHoleRounds.map((round) => round.score)),
+        averageScore18: average(eighteenHoleRounds.map((round) => round.score)),
+        averageDifferential: average(
+          playerDifferentials.map((entry) => entry.normalizedDifferential)
+        ),
+        countingPercentage:
+          playerDifferentials.length > 0
+            ? playerDifferentials.filter((entry) => entry.rawDifferential <= 0).length /
+              playerDifferentials.length
+            : null,
+        recentDifferential,
+        trend,
+        qualifyingRounds: playerDifferentials.length
+      };
+    })
+    .sort((a, b) => {
+      const aRecent = a.recentDifferential ?? Number.POSITIVE_INFINITY;
+      const bRecent = b.recentDifferential ?? Number.POSITIVE_INFINITY;
+
+      if (aRecent !== bRecent) {
+        return aRecent - bRecent;
+      }
+
+      const aSeason = a.averageDifferential ?? Number.POSITIVE_INFINITY;
+      const bSeason = b.averageDifferential ?? Number.POSITIVE_INFINITY;
+
+      if (aSeason !== bSeason) {
+        return aSeason - bSeason;
+      }
+
+      const aScore = a.averageScore9 ?? a.averageScore18 ?? Number.POSITIVE_INFINITY;
+      const bScore = b.averageScore9 ?? b.averageScore18 ?? Number.POSITIVE_INFINITY;
+
+      if (aScore !== bScore) {
+        return aScore - bScore;
+      }
+
+      return a.playerName.localeCompare(b.playerName);
+    });
+
+  let rank = 0;
+
+  return sortedPlayers.map((player) => ({
+    ...player,
+    rank: player.qualifyingRounds > 0 ? ++rank : null
+  }));
+}
+
 export async function getDashboardData(
   currentTeam: CurrentTeamContext
 ): Promise<DashboardData> {
@@ -137,7 +329,7 @@ export async function getDashboardData(
     const [playersResult, eventsResult, roundsResult] = await Promise.all([
       supabase
         .from("players")
-        .select("id, first_name, last_name")
+        .select("id, first_name, last_name, status")
         .eq("team_id", team.id)
         .order("last_name", { ascending: true })
         .order("first_name", { ascending: true }),
@@ -177,8 +369,11 @@ export async function getDashboardData(
     }
 
     const players = (playersResult.data ?? []) as PlayerLookupRow[];
+    const activePlayers = players.filter((player) => player.status !== "inactive");
     const events = (eventsResult.data ?? []) as EventLookupRow[];
     const rounds = (roundsResult.data ?? []) as RoundRow[];
+    const nineHoleRounds = roundsForLength(rounds, 9);
+    const eighteenHoleRounds = roundsForLength(rounds, 18);
 
     const playerNames = new Map(
       players.map((player) => [
@@ -210,11 +405,13 @@ export async function getDashboardData(
       teamName: team.name,
       activeSeasonName: activeSeason?.name ?? null,
       summary: {
-        totalPlayers: players.length,
+        totalPlayers: activePlayers.length,
         totalEvents: events.length,
         totalRounds: rounds.length,
-        averageScore: average(rounds.map((round) => round.score)),
-        averagePutts: average(rounds.map((round) => round.putts)),
+        averageScore9: average(nineHoleRounds.map((round) => round.score)),
+        averageScore18: average(eighteenHoleRounds.map((round) => round.score)),
+        averagePutts9: average(nineHoleRounds.map((round) => round.putts)),
+        averagePutts18: average(eighteenHoleRounds.map((round) => round.putts)),
         fairwayPercentage: percentageFromTotals(
           rounds,
           "fairways_hit",
@@ -225,8 +422,14 @@ export async function getDashboardData(
           "greens_in_regulation",
           "gir_possible"
         ),
-        averagePenalties: average(rounds.map((round) => round.penalties))
+        averagePenalties9: average(
+          nineHoleRounds.map((round) => round.penalties)
+        ),
+        averagePenalties18: average(
+          eighteenHoleRounds.map((round) => round.penalties)
+        )
       },
+      lineupPerformance: buildLineupPerformance(activePlayers, rounds),
       recentRounds
     };
   } catch (error) {
