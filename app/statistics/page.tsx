@@ -1197,81 +1197,249 @@ function HoleBreakdownSection({
         )}
       </div>
 
-      {breakdown.holes.length === 0 ? null : (
-        <div className={tableShellClassName}>
-          <div className={cn(tableHeaderClassName, "2xl:grid 2xl:grid-cols-[0.6fr_0.7fr_0.7fr_0.9fr_0.9fr_0.9fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr]")}>
-            <span>Hole</span>
-            <span>Par/HCP</span>
-            <span>Rounds</span>
-            <span>Avg Score</span>
-            <span>Avg +/-</span>
-            <span>Avg Putts</span>
-            <span>FIR</span>
-            <span>GIR</span>
-            <span>Avg Pen.</span>
-            <span>3-putts</span>
-            <span>3-putt %</span>
+      {breakdown.holes.length > 0 ? (
+        <section
+          aria-labelledby="hole-performance-heading"
+          className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-900/5"
+        >
+          <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/70 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-7">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-green-700">
+                Hole-by-hole insights
+              </p>
+              <h3
+                id="hole-performance-heading"
+                className="mt-1 text-xl font-bold tracking-tight text-slate-950"
+              >
+                Full Course Performance
+              </h3>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+                A scorecard-style view of every hole, with scoring, accuracy, and putting side by side.
+              </p>
+            </div>
+            <Badge tone="slate">{breakdown.holes.length} holes</Badge>
           </div>
-          <div className="divide-y divide-gray-100">
-            {breakdown.holes.map((hole) => (
-              <HoleStatRow
-                key={hole.holeNumber}
-                hole={hole}
-                isHardest={hardestHoleNumbers.has(hole.holeNumber)}
+
+          <div className="space-y-8 p-4 sm:p-6 lg:p-7">
+            {breakdown.holes.some((hole) => hole.holeNumber <= 9) ? (
+              <HoleNineGroup
+                title="Front Nine"
+                range="Holes 1-9"
+                holes={breakdown.holes.filter((hole) => hole.holeNumber <= 9)}
+                hardestHoleNumbers={hardestHoleNumbers}
               />
-            ))}
+            ) : null}
+            {breakdown.holes.some((hole) => hole.holeNumber > 9) ? (
+              <HoleNineGroup
+                title="Back Nine"
+                range="Holes 10-18"
+                holes={breakdown.holes.filter((hole) => hole.holeNumber > 9)}
+                hardestHoleNumbers={hardestHoleNumbers}
+              />
+            ) : null}
+            <p className="border-t border-slate-100 pt-4 text-xs leading-5 text-slate-500">
+              Statistics use scorecards with saved hole-by-hole data. FIR does not apply to par-3 holes.
+              The 3+ putt metric counts holes with at least three recorded putts.
+              A dash means that metric has no recorded data yet.
+            </p>
           </div>
-        </div>
-      )}
+        </section>
+      ) : null}
     </div>
   );
 }
 
-function HoleStatRow({
+function HoleNineGroup({
+  title,
+  range,
+  holes,
+  hardestHoleNumbers
+}: {
+  title: string;
+  range: string;
+  holes: HoleStats[];
+  hardestHoleNumbers: Set<number>;
+}) {
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="h-7 w-1 rounded-full bg-green-700" aria-hidden="true" />
+          <div>
+            <h4 className="text-base font-bold text-slate-950">{title}</h4>
+            <p className="text-xs text-slate-500">{range}</p>
+          </div>
+        </div>
+        <span className="text-xs font-semibold text-slate-500">
+          {holes.length} {holes.length === 1 ? "hole" : "holes"}
+        </span>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {holes.map((hole) => (
+          <HolePerformanceCard
+            key={hole.holeNumber}
+            hole={hole}
+            isHardest={hardestHoleNumbers.has(hole.holeNumber)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function holeScoreTone(averageScoreToPar: number | null) {
+  if (averageScoreToPar === null) {
+    return "border-slate-200 bg-slate-100 text-slate-600";
+  }
+  if (averageScoreToPar <= 0) {
+    return "border-green-200 bg-green-50 text-green-800";
+  }
+  if (averageScoreToPar < 1) {
+    return "border-amber-200 bg-amber-50 text-amber-800";
+  }
+  return "border-rose-200 bg-rose-50 text-rose-800";
+}
+
+function HolePerformanceCard({
   hole,
   isHardest
 }: {
   hole: HoleStats;
   isHardest: boolean;
 }) {
+  const hasData = hole.roundsPlayed > 0;
+
   return (
-    <div
+    <article
       className={cn(
-        tableRowClassName,
-        "2xl:grid-cols-[0.6fr_0.7fr_0.7fr_0.9fr_0.9fr_0.9fr_0.8fr_0.8fr_0.9fr_0.8fr_0.9fr] 2xl:items-center",
-        isHardest && "bg-amber-50/60 hover:bg-amber-50"
+        "relative overflow-hidden rounded-xl border bg-white p-4 transition-shadow hover:shadow-md sm:p-5",
+        isHardest ? "border-amber-200" : "border-slate-200"
       )}
+      aria-label={"Hole " + hole.holeNumber + " performance"}
     >
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 2xl:hidden">
-          Hole
-        </p>
-        <div className="flex items-center gap-2">
-          <p className="font-semibold text-slate-950">{hole.holeNumber}</p>
-          {isHardest ? (
-            <Badge tone="amber">
-              Hard
-            </Badge>
-          ) : null}
+      <div
+        className={cn(
+          "absolute inset-x-0 top-0 h-1",
+          isHardest ? "bg-amber-400" : "bg-green-700"
+        )}
+        aria-hidden="true"
+      />
+
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xl font-bold tabular-nums text-slate-900">
+            {hole.holeNumber}
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-900">Hole {hole.holeNumber}</p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Par {hole.par}
+              {hole.handicap !== null ? " · HCP " + hole.handicap : ""}
+            </p>
+          </div>
+        </div>
+        {isHardest ? (
+          <Badge tone="amber">Top 3 hardest</Badge>
+        ) : null}
+      </div>
+
+      <div className="mt-5 grid grid-cols-[1fr_auto] items-end gap-2">
+        <div>
+          <p className="text-xs font-medium text-slate-500">Average score</p>
+          <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-slate-950">
+            {hole.averageScore === null ? "—" : hole.averageScore.toFixed(1)}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="mb-2 text-xs font-medium text-slate-500">Avg. to par</p>
+          <span className={cn(
+            "inline-flex rounded-full border px-2.5 py-1 text-sm font-bold tabular-nums",
+            holeScoreTone(hole.averageScoreToPar)
+          )}>
+            {hole.averageScoreToPar === null
+              ? "—"
+              : formatToPar(hole.averageScoreToPar)}
+          </span>
         </div>
       </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 2xl:hidden">
-          Par/HCP
-        </p>
-        <p className="text-slate-700">
-          Par {hole.par}{hole.handicap ? ` / HCP ${hole.handicap}` : ""}
-        </p>
+
+      <div className="mt-4 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+        <HoleRateMeter label="GIR" rate={hole.girPercentage} />
+        <HoleRateMeter
+          label="FIR"
+          rate={hole.firPercentage}
+          notApplicable={hole.par === 3}
+        />
       </div>
-      <StatCell label="Rounds" value={hole.roundsPlayed.toString()} hideLabelAt="2xl" />
-      <StatCell label="Avg Score" value={formatAverage(hole.averageScore)} strong hideLabelAt="2xl" />
-      <StatCell label="Avg +/-" value={formatToPar(hole.averageScoreToPar)} strong hideLabelAt="2xl" />
-      <StatCell label="Avg Putts" value={formatAverage(hole.averagePutts)} hideLabelAt="2xl" />
-      <StatCell label="FIR" value={formatFirPercentage(hole)} hideLabelAt="2xl" />
-      <StatCell label="GIR" value={formatPercentage(hole.girPercentage)} hideLabelAt="2xl" />
-      <StatCell label="Avg Penalties" value={formatAverage(hole.averagePenalties)} hideLabelAt="2xl" />
-      <StatCell label="Three-putts" value={hole.threePuttCount.toString()} hideLabelAt="2xl" />
-      <StatCell label="Three-putt %" value={formatPercentage(hole.threePuttPercentage)} hideLabelAt="2xl" />
+
+      <div className="mt-4 grid grid-cols-3 divide-x divide-slate-200 rounded-lg bg-slate-50 py-3">
+        <div className="px-2 text-center">
+          <p className="text-[11px] font-medium text-slate-500">Avg. putts</p>
+          <p className="mt-1 text-sm font-bold tabular-nums text-slate-900">
+            {hole.averagePutts === null ? "—" : hole.averagePutts.toFixed(1)}
+          </p>
+        </div>
+        <div className="px-2 text-center">
+          <p className="text-[11px] font-medium text-slate-500">Avg. pen.</p>
+          <p className="mt-1 text-sm font-bold tabular-nums text-slate-900">
+            {hole.averagePenalties === null ? "—" : hole.averagePenalties.toFixed(1)}
+          </p>
+        </div>
+        <div className="px-2 text-center">
+          <p className="text-[11px] font-medium text-slate-500">3+ putts</p>
+          <p className="mt-1 text-sm font-bold tabular-nums text-slate-900">
+            {hole.threePuttPercentage === null ? "—" : formatPercentage(hole.threePuttPercentage)}
+          </p>
+          <p className="text-[10px] text-slate-500">
+            {hole.threePuttPercentage === null ? "Not tracked" : hole.threePuttCount + " holes"}
+          </p>
+        </div>
+      </div>
+
+      <p className="mt-3 text-xs text-slate-500">
+        {hasData
+          ? hole.roundsPlayed + " " + (hole.roundsPlayed === 1 ? "scorecard" : "scorecards") + " recorded"
+          : "No hole-by-hole scores recorded yet"}
+      </p>
+    </article>
+  );
+}
+
+function HoleRateMeter({
+  label,
+  rate,
+  notApplicable = false
+}: {
+  label: string;
+  rate: number | null;
+  notApplicable?: boolean;
+}) {
+  const percentage = rate === null || notApplicable
+    ? null
+    : Math.max(0, Math.min(100, Math.round(rate * 100)));
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-semibold text-slate-600">{label}</span>
+        <span className="font-bold tabular-nums text-slate-900">
+          {notApplicable ? "N/A" : percentage === null ? "—" : percentage + "%"}
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        {percentage !== null ? (
+          <div
+            className="h-full rounded-full bg-green-700"
+            style={{ width: percentage + "%" }}
+            role="progressbar"
+            aria-label={label === "GIR" ? "Greens in regulation" : "Fairways hit"}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percentage}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
