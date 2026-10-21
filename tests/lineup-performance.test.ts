@@ -78,6 +78,7 @@ test("player trend improves when recent three differentials fall", () => {
     rows.push(round(2, 40, { id: `p2-${day}`, played_on: date }));
     rows.push(round(3, 41, { id: `p3-${day}`, played_on: date }));
     rows.push(round(4, 42, { id: `p4-${day}`, played_on: date }));
+    rows.push(round(5, 43, { id: `p5-${day}`, played_on: date }));
   });
   assert.equal(get(rows, 1).trend, "up");
 });
