@@ -1,3 +1,4 @@
+import { buildLineupPerformance, type DashboardLineupPerformance } from "./lineup-performance";
 import { getActiveSeasonForTeam } from "../seasons/active-season";
 import type { CurrentTeamContext } from "../auth/get-current-team";
 
@@ -5,6 +6,7 @@ type PlayerLookupRow = {
   id: string;
   first_name: string;
   last_name: string;
+  status: string;
 };
 
 type EventLookupRow = {
@@ -17,6 +19,9 @@ type RoundRow = {
   player_id: string;
   event_id: string | null;
   played_on: string;
+  created_at: string;
+  holes: number;
+  counts_toward_lineup: boolean;
   score: number;
   putts: number | null;
   fairways_hit: number | null;
@@ -28,7 +33,7 @@ type RoundRow = {
 };
 
 const roundsSelect =
-  "id, player_id, event_id, played_on, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts";
+  "id, player_id, event_id, played_on, created_at, holes, counts_toward_lineup, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts";
 
 export type DashboardRound = {
   id: string;
@@ -56,12 +61,15 @@ export type DashboardSummary = {
   averagePenalties: number | null;
 };
 
+export type { DashboardLineupPerformance };
+
 export type DashboardData =
   | {
       status: "ready";
       teamName: string;
       activeSeasonName: string | null;
       summary: DashboardSummary;
+      lineupPerformance: DashboardLineupPerformance[];
       recentRounds: DashboardRound[];
     }
   | {
@@ -137,7 +145,7 @@ export async function getDashboardData(
     const [playersResult, eventsResult, roundsResult] = await Promise.all([
       supabase
         .from("players")
-        .select("id, first_name, last_name")
+        .select("id, first_name, last_name, status")
         .eq("team_id", team.id)
         .order("last_name", { ascending: true })
         .order("first_name", { ascending: true }),
@@ -210,7 +218,7 @@ export async function getDashboardData(
       teamName: team.name,
       activeSeasonName: activeSeason?.name ?? null,
       summary: {
-        totalPlayers: players.length,
+        totalPlayers: players.filter((p) => p.status !== "inactive").length,
         totalEvents: events.length,
         totalRounds: rounds.length,
         averageScore: average(rounds.map((round) => round.score)),
@@ -227,6 +235,7 @@ export async function getDashboardData(
         ),
         averagePenalties: average(rounds.map((round) => round.penalties))
       },
+      lineupPerformance: buildLineupPerformance(players.filter((p) => p.status !== "inactive"), rounds),
       recentRounds
     };
   } catch (error) {
