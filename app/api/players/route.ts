@@ -94,6 +94,7 @@ function validatePlayerDetails(input: CreatePlayerInput): PlayerValidationResult
 
 function revalidateRosterViews() {
   revalidatePath("/roster");
+  revalidatePath("/setup");
   revalidatePath("/players");
   revalidatePath("/statistics");
   revalidatePath("/coach-insights");
