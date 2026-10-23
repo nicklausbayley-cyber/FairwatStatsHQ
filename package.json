@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
-    "test:insights": "tsc --project tests/tsconfig.json && node --test .test-build/tests/*.test.js"
+    "test:insights": "tsc --project tests/tsconfig.json && node --test .test-build/tests/*.test.js",
+    "test:setup": "tsc --project tests/tsconfig.json && node --test .test-build/tests/coach-setup.test.js"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.0",
