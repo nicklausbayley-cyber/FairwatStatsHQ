@@ -102,6 +102,7 @@ function validateEventDetails(input: EventDetailsInput): EventValidationResult {
 
 function revalidateEventViews() {
   revalidatePath("/events");
+  revalidatePath("/setup");
   revalidatePath("/dashboard");
   revalidatePath("/coach-insights");
   revalidatePath("/enter-score");

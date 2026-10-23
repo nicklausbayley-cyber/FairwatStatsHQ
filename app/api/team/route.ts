@@ -341,6 +341,13 @@ export async function PATCH(request: Request) {
     let logoUrl = teamSettings.logoUrl;
 
     if (settingsRequest.logoFile) {
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        return jsonResult(
+          "Logo uploads are unavailable in this deployment. Please contact Fairway Stats HQ support. You can save other team details without selecting a logo.",
+          503
+        );
+      }
+
       const adminSupabase = createAdminClient();
       const logoUpload = await uploadLogoFile({
         supabase: adminSupabase,
@@ -380,6 +387,7 @@ export async function PATCH(request: Request) {
 
     revalidatePath("/", "layout");
     revalidatePath("/settings");
+    revalidatePath("/setup");
     revalidatePath("/dashboard");
     revalidatePath("/roster");
     revalidatePath("/events");

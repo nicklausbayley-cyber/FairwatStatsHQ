@@ -16,6 +16,7 @@ type HeaderUser = {
 };
 
 const staffNavItems = [
+  { href: "/setup", label: "Setup" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/enter-score", label: "Enter Score" },
   { href: "/roster", label: "Roster" },
