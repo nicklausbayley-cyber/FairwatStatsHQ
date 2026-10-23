@@ -36,6 +36,7 @@ function isValidOptionalDate(value: string | null) {
 
 function revalidateSeasonViews() {
   revalidatePath("/settings");
+  revalidatePath("/setup");
   revalidatePath("/dashboard");
   revalidatePath("/events");
   revalidatePath("/enter-score");
