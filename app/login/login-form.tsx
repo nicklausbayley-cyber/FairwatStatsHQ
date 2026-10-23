@@ -16,6 +16,20 @@ async function getSignedInRedirectPath(role: string | null | undefined) {
   }
 
   if (role === "admin" || role === "coach") {
+    try {
+      const response = await fetch("/api/setup/status", { cache: "no-store" });
+      if (response.ok) {
+        const setup = (await response.json()) as {
+          success?: boolean;
+          complete?: boolean;
+        };
+        if (setup.success && setup.complete === false) {
+          return "/setup";
+        }
+      }
+    } catch {
+      // Login stays available even if setup status cannot be read.
+    }
     return "/dashboard";
   }
 
@@ -88,7 +102,9 @@ export function LoginForm() {
             ? "Signed in. Opening score entry..."
             : nextPath === "/onboarding"
               ? "Signed in. Opening onboarding..."
-              : "Signed in. Opening dashboard..."
+              : nextPath === "/setup"
+                ? "Signed in. Opening your Coach Welcome Center..."
+                : "Signed in. Opening dashboard..."
       });
 
       router.push(nextPath);
