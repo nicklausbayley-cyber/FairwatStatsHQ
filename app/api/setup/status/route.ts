@@ -3,8 +3,8 @@ import {
   authStatusCode,
   getCurrentTeam,
   isTeamStaff
-} from "../../../lib/auth/get-current-team";
-import { loadCoachSetup } from "../../../lib/setup/load";
+} from "../../../../lib/auth/get-current-team";
+import { loadCoachSetup } from "../../../../lib/setup/load";
 
 export const dynamic = "force-dynamic";
 
