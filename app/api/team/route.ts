@@ -380,6 +380,7 @@ export async function PATCH(request: Request) {
 
     revalidatePath("/", "layout");
     revalidatePath("/settings");
+    revalidatePath("/setup");
     revalidatePath("/dashboard");
     revalidatePath("/roster");
     revalidatePath("/events");
