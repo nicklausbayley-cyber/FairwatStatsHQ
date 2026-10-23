@@ -89,13 +89,19 @@ function SetupMilestone({
         </div>
       </div>
       {step.complete ? (
-        <Link
-          href={step.href}
-          className="inline-flex shrink-0 items-center gap-1 self-start text-sm font-semibold text-green-800 hover:text-green-900 sm:self-center"
-        >
-          {step.id === "account" ? "Account ready" : "Review"}
-          {step.id !== "account" ? <ArrowRight className="h-4 w-4" aria-hidden="true" /> : null}
-        </Link>
+        step.id === "account" ? (
+          <span className="self-start text-sm font-semibold text-green-800 sm:self-center">
+            Account ready
+          </span>
+        ) : (
+          <Link
+            href={step.href}
+            className="inline-flex shrink-0 items-center gap-1 self-start text-sm font-semibold text-green-800 hover:text-green-900 sm:self-center"
+          >
+            Review
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        )
       ) : (
         <Link
           href={step.href}
