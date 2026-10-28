@@ -3,7 +3,7 @@
 **Target:** Wednesday, November 4, 2026 (meeting time and invite still to confirm)
 **Length:** 20 minutes
 **Demo environment:** Riverside Eagles Golf, 2026 Spring Season
-**Audience:** Luke Richison / Indiana high school golf coaching conversation
+**Audience:** Luke Richison (IHSGCA Past-President, per his October 26 email signature) / Indiana high school golf coaching conversation
 **Status:** Draft presenter guide. Riverside data cleaned and reviewed October 28; fictional demonstration data only.
 
 ## The one sentence to remember
@@ -98,7 +98,7 @@ Stop screen-sharing so Luke can speak. Ask, in this order as time permits:
 4. "Would you feel comfortable introducing me to five or ten Indiana coaches who might be willing to review it before their spring season?"
 5. "If the response is positive, is a short demo during an association touchpoint or a resource/newsletter mention something worth discussing?"
 
-**The specific ask:** a small, permission-based feedback cohort and the appropriate next introduction. Do **not** push for an IHSGCA endorsement on this first conversation.
+**The specific ask:** a small, permission-based feedback cohort and the appropriate next introduction. Luke signs as **IHSGCA Past-President**; do **not** assume he can directly approve an association partnership, and do **not** push for an IHSGCA endorsement on this first conversation.
 
 Possible close:
 
@@ -126,7 +126,7 @@ Walk coaches through the five Coach Welcome Center milestones: account, school b
 
 ## Meeting-day checklist
 
-- [ ] Confirm exact November 4 time and send/verify the video meeting invitation (not confirmed by this guide).
+- [ ] Confirm exact November 4 time and send/verify the Google Meet invitation. Gmail shows Luke offered Wednesday (all day) or Thursday morning and you promised the invitation; no final time is established in that thread as of October 28.
 - [ ] Sign in as Riverside coach and verify the 2026 Spring Season loads.
 - [ ] Check Nate and Caleb appear in Lineup Performance and numbers match the table, allowing for UI rounding.
 - [ ] Open 9-hole Coach Insights and confirm summary, practice priority, and watchlist display.
