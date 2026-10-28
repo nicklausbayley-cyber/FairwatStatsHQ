@@ -1057,9 +1057,9 @@ select
     when 2 then
       'Mason has improved his approach-shot consistency and is beginning to convert more birdie opportunities.'
     when 3 then
-      'Sofia is trending in the right direction, particularly with fairways hit and avoiding penalty strokes.'
+      'Ryan is trending in the right direction, particularly with fairways hit and avoiding penalty strokes.'
     when 4 then
-      'Nora competes well and has shown steady improvement throughout the spring schedule.'
+      'Nate competes well and has shown steady improvement throughout the spring schedule.'
     when 5 then
       'Caleb has the distance to score well and is improving his decision-making off the tee.'
     when 6 then
