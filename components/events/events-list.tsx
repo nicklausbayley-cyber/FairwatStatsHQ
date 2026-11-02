@@ -37,7 +37,7 @@ export function EventsList({
       />
 
       {eventsData.status === "ready" && showAddEventForm ? (
-        <AddEventForm activeSeasonName={eventsData.activeSeasonName} />
+        <AddEventForm activeSeasonName={eventsData.activeSeasonName} courses={eventsData.courses} />
       ) : null}
 
       {eventsData.status === "error" ? (
@@ -59,7 +59,7 @@ export function EventsList({
       ) : null}
 
       {eventsData.status === "ready" && eventsData.events.length > 0 ? (
-        <EventsTable events={eventsData.events} />
+        <EventsTable events={eventsData.events} courses={eventsData.courses} />
       ) : null}
     </section>
   );
