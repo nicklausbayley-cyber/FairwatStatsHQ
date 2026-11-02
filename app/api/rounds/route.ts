@@ -266,6 +266,7 @@ export async function POST(request: Request) {
     }
 
     let linkedEventCourse: { courseId: string; holeSelection: EventHoleSelection } | null = null;
+    let linkedEventPar: number | null = null;
 
     if (input.eventId) {
       const { data: event, error: eventError } = await supabase
@@ -296,6 +297,13 @@ export async function POST(request: Request) {
         return jsonResult("The selected course must match the event's configured course.", 400);
       }
 
+      const { data: permittedCourse, error: permittedCourseError } = await supabase
+        .from("courses").select("id")
+        .eq("id", linkedEventCourse.courseId).eq("team_id", team.id).maybeSingle();
+      if (permittedCourseError || !permittedCourse) {
+        return jsonResult("The event's course is not available for this team.", 403);
+      }
+
       const { data: configuredHoles, error: holeConfigError } = await supabase
         .from("course_holes")
         .select("hole_number,par")
@@ -312,9 +320,10 @@ export async function POST(request: Request) {
       }
 
       const expectedNumbers = expectedEventHoleNumbers(linkedEventCourse.holeSelection);
+      const official = new Map(availableHoles.map(hole => [hole.hole_number, hole.par]));
+      linkedEventPar = expectedNumbers.reduce((sum, number) => sum + (official.get(number) ?? 0), 0);
       if (holeEntryMode) {
         const submitted = new Map(holeEntries.map(hole => [hole.holeNumber, hole]));
-        const official = new Map(availableHoles.map(hole => [hole.hole_number, hole.par]));
         if (
           submitted.size !== expectedNumbers.length ||
           holeEntries.length !== expectedNumbers.length ||
@@ -370,7 +379,7 @@ export async function POST(request: Request) {
         played_on: input.playedOn,
         holes: totals?.holes ?? input.holes,
         score: totals?.score ?? input.score,
-        par: totals?.par ?? input.par,
+        par: totals?.par ?? linkedEventPar ?? input.par,
         putts: totals?.putts ?? input.putts,
         fairways_hit: totals?.fairwaysHit ?? input.fairwaysHit,
         fairways_possible: totals?.fairwaysPossible ?? input.fairwaysPossible,
