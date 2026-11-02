@@ -10,6 +10,6 @@ export default async function SupportPage() {
       <h1 className="mt-2 text-3xl font-bold">Support Center</h1>
       <p className="mt-2 text-slate-600">Search schools, review setup health, and manage team golf courses without signing in as a coach.</p>
     </div>
-    <SupportConsole />
+    <SupportConsole previewReadOnly={process.env.VERCEL_ENV !== "production"} />
   </section>;
 }

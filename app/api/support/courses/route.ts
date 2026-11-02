@@ -17,6 +17,9 @@ function fail(message: string, status = 400) {
 export async function POST(request: Request) {
   const access = await getSupportAdminStatus();
   if (!access.data) return fail(access.error, supportAdminStatusCode(access.status));
+  if (process.env.VERCEL_ENV !== "production") {
+    return fail("Course editing is disabled in Preview. This is a read-only support environment.", 403);
+  }
 
   let payload: CourseInput;
   try { payload = await request.json(); } catch { return fail("Invalid request."); }

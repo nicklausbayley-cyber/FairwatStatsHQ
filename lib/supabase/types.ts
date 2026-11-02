@@ -434,7 +434,12 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      support_team_inventory: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
+    };
     Enums: {
       user_role: "admin" | "coach" | "player";
       event_type:

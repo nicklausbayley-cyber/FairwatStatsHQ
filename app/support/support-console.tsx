@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 type Team = { id: string; name: string; school_name: string | null; contact_email: string | null; coaches: number; players: number; courses: number; events: number; rounds: number; activeSeason: string | null };
 type Course = { id: string; team_id: string; name: string; location: string | null };
 
-export function SupportConsole() {
+export function SupportConsole({ previewReadOnly = false }: { previewReadOnly?: boolean }) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [filter, setFilter] = useState("");
@@ -14,10 +14,12 @@ export function SupportConsole() {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [message, setMessage] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
   async function refresh() {
+    setLoadError("");
     const response = await fetch("/api/support", { cache: "no-store" });
     const result = await response.json();
     if (!response.ok || !result.success) throw new Error(result.message || "Unable to load support console.");
@@ -27,7 +29,7 @@ export function SupportConsole() {
   }
 
   useEffect(() => {
-    void refresh().catch(error => setMessage(error instanceof Error ? error.message : "Unable to load support data.")).finally(() => setLoading(false));
+    void refresh().catch(error => setLoadError(error instanceof Error ? error.message : "Unable to load support data.")).finally(() => setLoading(false));
   }, []);
 
   const selectedTeam = teams.find(team => team.id === teamId);
@@ -59,6 +61,7 @@ export function SupportConsole() {
       <h2 className="text-lg font-bold text-slate-950">Find a team</h2>
       <input aria-label="Search teams" className="mt-3 w-full rounded-lg border border-slate-300 p-3" placeholder="Search school, team or email" value={filter} onChange={e => setFilter(e.target.value)} />
       {loading ? <p className="mt-4 text-sm">Loading...</p> : null}
+      {loadError ? <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{loadError}</p> : null}
       <div className="mt-4 max-h-[520px] space-y-2 overflow-y-auto">
         {filteredTeams.map(team => <button key={team.id} type="button" onClick={() => { setTeamId(team.id); setCourseId(""); setName(""); setLocation(""); setMessage(""); }}
           className={"w-full rounded-xl border p-4 text-left " + (team.id === teamId ? "border-emerald-600 bg-emerald-50" : "border-slate-200 hover:bg-slate-50")}>
@@ -66,7 +69,7 @@ export function SupportConsole() {
           <span className="block text-sm text-slate-600">{team.school_name || "School not set"}</span>
           <span className="mt-1 block text-xs text-slate-500">{team.players} players · {team.rounds} rounds · {team.courses} courses</span>
         </button>)}
-        {!loading && filteredTeams.length === 0 ? <p className="text-sm text-slate-500">No matching teams.</p> : null}
+        {!loading && !loadError && filteredTeams.length === 0 ? <p className="text-sm text-slate-500">{teams.length ? "No matching teams." : "No teams have been created yet."}</p> : null}
       </div>
     </section>
     <section className="space-y-5">
@@ -83,19 +86,19 @@ export function SupportConsole() {
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="text-lg font-bold">Manage courses</h2>
-          <p className="mt-1 text-sm text-slate-600">Add or correct a course for this team. All changes are logged.</p>
+          <p className="mt-1 text-sm text-slate-600">{previewReadOnly ? "Preview is read-only. Course changes will be available in the live Support Center after release." : "Add or correct a course for this team. All changes are logged."}</p>
           <div className="mt-3 space-y-2">{selectedCourses.map(course =>
-            <button type="button" key={course.id} onClick={() => { setCourseId(course.id); setName(course.name); setLocation(course.location ?? ""); }} className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm hover:bg-slate-50">
+            <button type="button" key={course.id} disabled={previewReadOnly} onClick={() => { setCourseId(course.id); setName(course.name); setLocation(course.location ?? ""); }} className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm hover:bg-slate-50">
               <span className="font-medium">{course.name}</span><span className="block text-xs text-slate-500">{course.location || "No location"}</span>
             </button>)}</div>
-          <form onSubmit={saveCourse} className="mt-5 space-y-3">
+          {!previewReadOnly ? <form onSubmit={saveCourse} className="mt-5 space-y-3">
             <label className="block text-sm font-medium">Course name<input required maxLength={150} value={name} onChange={e => setName(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 p-3" /></label>
             <label className="block text-sm font-medium">Location<input maxLength={200} value={location} onChange={e => setLocation(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 p-3" /></label>
             <div className="flex gap-2">
               <button type="submit" disabled={saving || !name.trim()} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? "Saving..." : courseId ? "Save changes" : "Add course"}</button>
               {courseId ? <button type="button" className="rounded-lg border px-4 py-2 text-sm" onClick={() => { setCourseId(""); setName(""); setLocation(""); }}>New course</button> : null}
             </div>
-          </form>
+          </form> : null}
           {message ? <p role="status" className="mt-3 text-sm text-slate-700">{message}</p> : null}
         </div>
       </> : <p className="text-sm text-slate-600">Select a team to view its setup.</p>}
