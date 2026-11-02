@@ -39,6 +39,9 @@ async function getSignedInRedirectPath(role: string | null | undefined) {
     return "/onboarding";
   }
 
+  const supportResponse = await fetch("/api/support");
+  if (supportResponse.ok) return "/support";
+
   return null;
 }
 
@@ -100,6 +103,8 @@ export function LoginForm() {
         text:
           nextPath === "/enter-score"
             ? "Signed in. Opening score entry..."
+            : nextPath === "/support"
+              ? "Signed in. Opening support center..."
             : nextPath === "/onboarding"
               ? "Signed in. Opening onboarding..."
               : nextPath === "/setup"
