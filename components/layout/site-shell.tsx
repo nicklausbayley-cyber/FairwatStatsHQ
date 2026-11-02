@@ -1,13 +1,15 @@
 import type { ReactNode } from "react";
 import { getCurrentTeam } from "../../lib/auth/get-current-team";
+import { getSupportAdminStatus } from "../../lib/auth/support-admin";
 import { getPlatformAdminStatus } from "../../lib/auth/platform-admin";
 import { getTeamBrandingFromTeam } from "../../lib/team/branding";
 import { SiteShellFrame } from "./site-shell-frame";
 
 export async function SiteShell({ children }: { children: ReactNode }) {
-  const [currentTeam, platformAdmin] = await Promise.all([
+  const [currentTeam, platformAdmin, supportAdmin] = await Promise.all([
     getCurrentTeam(),
-    getPlatformAdminStatus()
+    getPlatformAdminStatus(),
+    getSupportAdminStatus()
   ]);
 
   let playerProfileHref: string | null = null;
@@ -36,7 +38,8 @@ export async function SiteShell({ children }: { children: ReactNode }) {
           "",
         role: currentTeam.data.role,
         playerProfileHref,
-        isPlatformAdmin: platformAdmin.data !== null
+        isPlatformAdmin: platformAdmin.data !== null,
+        isSupportAdmin: supportAdmin.data !== null
       }
     : platformAdmin.data
       ? {
@@ -44,9 +47,12 @@ export async function SiteShell({ children }: { children: ReactNode }) {
           email: platformAdmin.data.email,
           role: "platform" as const,
           playerProfileHref: null,
-          isPlatformAdmin: true
+          isPlatformAdmin: true,
+          isSupportAdmin: true
         }
-      : null;
+      : supportAdmin.data
+        ? { name: supportAdmin.data.email, email: supportAdmin.data.email, role: "platform" as const, playerProfileHref: null, isPlatformAdmin: false, isSupportAdmin: true }
+        : null;
 
   return (
     <SiteShellFrame branding={branding} user={user}>
