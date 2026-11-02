@@ -29,6 +29,8 @@ export async function SiteShell({ children }: { children: ReactNode }) {
     ? getTeamBrandingFromTeam(currentTeam.data.team)
     : null;
 
+  const isPreviewEnvironment = process.env.VERCEL_ENV === "preview";
+
   const user = currentTeam.data
     ? {
         name: currentTeam.data.profile.full_name,
@@ -39,7 +41,8 @@ export async function SiteShell({ children }: { children: ReactNode }) {
         role: currentTeam.data.role,
         playerProfileHref,
         isPlatformAdmin: platformAdmin.data !== null,
-        isSupportAdmin: supportAdmin.data !== null
+        isSupportAdmin: supportAdmin.data !== null,
+        isPreviewEnvironment
       }
     : platformAdmin.data
       ? {
@@ -48,10 +51,11 @@ export async function SiteShell({ children }: { children: ReactNode }) {
           role: "platform" as const,
           playerProfileHref: null,
           isPlatformAdmin: true,
-          isSupportAdmin: true
+          isSupportAdmin: true,
+          isPreviewEnvironment
         }
       : supportAdmin.data
-        ? { name: supportAdmin.data.email, email: supportAdmin.data.email, role: "platform" as const, playerProfileHref: null, isPlatformAdmin: false, isSupportAdmin: true }
+        ? { name: supportAdmin.data.email, email: supportAdmin.data.email, role: "platform" as const, playerProfileHref: null, isPlatformAdmin: false, isSupportAdmin: true, isPreviewEnvironment }
         : null;
 
   return (

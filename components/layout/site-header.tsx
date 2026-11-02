@@ -14,6 +14,7 @@ type HeaderUser = {
   playerProfileHref: string | null;
   isPlatformAdmin: boolean;
   isSupportAdmin: boolean;
+  isPreviewEnvironment: boolean;
 };
 
 const staffNavItems = [
@@ -46,12 +47,12 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function getRoleLabel(role: HeaderUser["role"]) {
-  if (role === "platform") {
-    return "Platform Admin";
+function getRoleLabel(user: HeaderUser) {
+  if (user.role === "platform") {
+    return user.isPlatformAdmin ? "Platform Admin" : "Support Admin";
   }
 
-  return role.charAt(0).toUpperCase() + role.slice(1);
+  return user.role.charAt(0).toUpperCase() + user.role.slice(1);
 }
 
 function getNavItems(user: HeaderUser | null) {
@@ -60,9 +61,14 @@ function getNavItems(user: HeaderUser | null) {
   }
 
   const supportNavItem = user.isSupportAdmin ? [{ href: "/support", label: "Support" }] : [];
+  // Onboarding uses privileged credentials configured for production only.
+  // A preview support user must open the existing live onboarding workflow,
+  // rather than expose those production credentials to preview deployments.
   const platformNavItem = user.isPlatformAdmin
     ? [{ href: "/onboarding", label: "Onboarding" }]
-    : [];
+    : user.isSupportAdmin && user.isPreviewEnvironment
+      ? [{ href: "https://app.fairwaystatshq.com/onboarding", label: "Onboarding (Live)" }]
+      : [];
 
   if (user.role === "platform") {
     return [...supportNavItem, ...platformNavItem];
@@ -211,7 +217,7 @@ export function SiteHeader({
                   color: primaryColor
                 }}
               >
-                {getRoleLabel(user.role)}
+                {getRoleLabel(user)}
               </span>
               <button
                 type="button"

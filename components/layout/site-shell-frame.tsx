@@ -13,6 +13,7 @@ type ShellUser = {
   playerProfileHref: string | null;
   isPlatformAdmin: boolean;
   isSupportAdmin: boolean;
+  isPreviewEnvironment: boolean;
 };
 
 const publicAuthPaths = [
