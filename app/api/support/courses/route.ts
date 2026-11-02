@@ -31,6 +31,17 @@ export async function POST(request: Request) {
 
   try {
     const admin = createAdminClient();
+
+    // Fail closed before modifying course data when the required audit table
+    // has not been deployed or is not accessible to the server-side admin.
+    const { error: auditReadyError } = await admin
+      .from("support_audit_logs" as never)
+      .select("id")
+      .limit(1);
+    if (auditReadyError) {
+      return fail("Support course editing is unavailable until the audit log migration is applied.", 503);
+    }
+
     const { data: team, error: teamError } = await admin.from("teams").select("id").eq("id", teamId).maybeSingle();
     if (teamError || !team) return fail("Team not found.", 404);
 
