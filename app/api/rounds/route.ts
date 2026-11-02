@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { allowedEventHoleSelections, expectedEventHoleNumbers, getConfiguredHoleCount, isEventHoleSelection, type EventHoleSelection } from "../../../lib/events/hole-selection";
 import { NextResponse } from "next/server";
 import {
   authStatusCode,
@@ -199,6 +200,10 @@ function validateSummaryInput(input: SubmitRoundInput) {
 }
 
 export async function POST(request: Request) {
+  if (process.env.VERCEL_ENV !== "production") {
+    return jsonResult("Preview is read-only. No scores were submitted.", 403);
+  }
+
   let input: SubmitRoundInput;
 
   try {
@@ -264,10 +269,13 @@ export async function POST(request: Request) {
       return jsonResult("Players can only submit their own rounds.", 403);
     }
 
+    let linkedEventCourse: { courseId: string; holeSelection: EventHoleSelection } | null = null;
+    let linkedEventPar: number | null = null;
+
     if (input.eventId) {
       const { data: event, error: eventError } = await supabase
         .from("events")
-        .select("id")
+        .select("id,course_id,hole_selection")
         .eq("id", input.eventId)
         .eq("team_id", team.id)
         .maybeSingle();
@@ -278,6 +286,58 @@ export async function POST(request: Request) {
 
       if (!event) {
         return jsonResult("Event not found for this team.", 404);
+      }
+
+      if (event.course_id) {
+        if (!isEventHoleSelection(event.hole_selection)) {
+          return jsonResult("This event needs a valid Front 9, Back 9, or Full 18 selection before scoring.", 409);
+        }
+        linkedEventCourse = { courseId: event.course_id, holeSelection: event.hole_selection };
+      }
+    }
+
+    if (linkedEventCourse) {
+      if (input.courseId !== linkedEventCourse.courseId) {
+        return jsonResult("The selected course must match the event's configured course.", 400);
+      }
+
+      const { data: permittedCourse, error: permittedCourseError } = await supabase
+        .from("courses").select("id")
+        .eq("id", linkedEventCourse.courseId).eq("team_id", team.id).maybeSingle();
+      if (permittedCourseError || !permittedCourse) {
+        return jsonResult("The event's course is not available for this team.", 403);
+      }
+
+      const { data: configuredHoles, error: holeConfigError } = await supabase
+        .from("course_holes")
+        .select("hole_number,par")
+        .eq("course_id", linkedEventCourse.courseId)
+        .order("hole_number");
+      if (holeConfigError) {
+        return jsonResult("Could not verify the event's configured course holes.", 500);
+      }
+
+      const availableHoles = configuredHoles ?? [];
+      const holeCount = getConfiguredHoleCount(availableHoles.map(hole => hole.hole_number));
+      if (!allowedEventHoleSelections(holeCount).includes(linkedEventCourse.holeSelection)) {
+        return jsonResult("The event's selected course holes are no longer configured. Check course setup.", 409);
+      }
+
+      const expectedNumbers = expectedEventHoleNumbers(linkedEventCourse.holeSelection);
+      const official = new Map(availableHoles.map(hole => [hole.hole_number, hole.par]));
+      linkedEventPar = expectedNumbers.reduce((sum, number) => sum + (official.get(number) ?? 0), 0);
+      if (holeEntryMode) {
+        const submitted = new Map(holeEntries.map(hole => [hole.holeNumber, hole]));
+        if (
+          submitted.size !== expectedNumbers.length ||
+          holeEntries.length !== expectedNumbers.length ||
+          expectedNumbers.some(number =>
+            !submitted.has(number) || submitted.get(number)?.par !== official.get(number))
+        ) {
+          return jsonResult("Scores must use the exact event holes and their saved par values.", 400);
+        }
+      } else if (input.holes !== expectedNumbers.length) {
+        return jsonResult("This event requires a " + expectedNumbers.length + "-hole score.", 400);
       }
     }
 
@@ -323,7 +383,7 @@ export async function POST(request: Request) {
         played_on: input.playedOn,
         holes: totals?.holes ?? input.holes,
         score: totals?.score ?? input.score,
-        par: totals?.par ?? input.par,
+        par: totals?.par ?? linkedEventPar ?? input.par,
         putts: totals?.putts ?? input.putts,
         fairways_hit: totals?.fairwaysHit ?? input.fairwaysHit,
         fairways_possible: totals?.fairwaysPossible ?? input.fairwaysPossible,

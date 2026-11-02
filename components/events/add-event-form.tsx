@@ -2,6 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import type { EventCourseOption } from "../../lib/events/events";
+import type { EventHoleSelection } from "../../lib/events/hole-selection";
+import { EventCourseFields } from "./event-course-fields";
 import {
   FormSection,
   Message,
@@ -16,6 +19,8 @@ type FormState = {
   eventType: EventType | "";
   eventDate: string;
   courseName: string;
+  courseId: string;
+  holeSelection: EventHoleSelection | "";
   location: string;
 };
 
@@ -42,6 +47,8 @@ const initialFormState: FormState = {
   eventType: "",
   eventDate: "",
   courseName: "",
+  courseId: "",
+  holeSelection: "",
   location: ""
 };
 
@@ -58,13 +65,21 @@ function validateForm(form: FormState) {
     return "Event date is required.";
   }
 
+  if (form.courseId && !form.holeSelection) {
+    return "Choose Front 9, Back 9, or Full 18 for this course.";
+  }
+
   return null;
 }
 
 export function AddEventForm({
-  activeSeasonName
+  activeSeasonName,
+  courses,
+  previewReadOnly = false
 }: {
   activeSeasonName: string | null;
+  courses: EventCourseOption[];
+  previewReadOnly?: boolean;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(initialFormState);
@@ -88,6 +103,10 @@ export function AddEventForm({
       setMessage({ type: "error", text: validationError });
       return;
     }
+    if (previewReadOnly) {
+      setMessage({ type: "success", text: "Draft looks valid. Preview mode did not save this event." });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -101,6 +120,8 @@ export function AddEventForm({
           name: form.name.trim(),
           eventType: form.eventType,
           eventDate: form.eventDate,
+          courseId: form.courseId || null,
+          holeSelection: form.holeSelection || null,
           courseName: form.courseName.trim() || null,
           location: form.location.trim() || null
         })
@@ -151,7 +172,7 @@ export function AddEventForm({
               disabled={isSubmitting}
               className={primaryButtonClassName}
             >
-              {isSubmitting ? "Adding..." : "Add Event"}
+              {isSubmitting ? "Adding..." : previewReadOnly ? "Validate Draft (No Save)" : "Add Event"}
             </button>
           </div>
         }
@@ -201,25 +222,11 @@ export function AddEventForm({
               />
             </label>
 
-            <label className="space-y-2">
-              <span className="text-sm font-semibold text-slate-700">Course name</span>
-              <input
-                type="text"
-                value={form.courseName}
-                onChange={(event) => updateField("courseName", event.target.value)}
-                className={inputClassName}
-              />
-            </label>
-
-            <label className="space-y-2 md:col-span-2 xl:col-span-5">
-              <span className="text-sm font-semibold text-slate-700">Location</span>
-              <input
-                type="text"
-                value={form.location}
-                onChange={(event) => updateField("location", event.target.value)}
-                className={inputClassName}
-              />
-            </label>
+            <EventCourseFields
+              courses={courses}
+              value={form}
+              onChange={changes => setForm(current => ({ ...current, ...changes }))}
+            />
           </div>
         </div>
       </FormSection>

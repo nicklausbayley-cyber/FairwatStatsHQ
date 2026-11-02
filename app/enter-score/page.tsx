@@ -1,4 +1,5 @@
 import { getActiveSeasonForTeam } from "../../lib/seasons/active-season";
+import type { EventHoleSelection } from "../../lib/events/hole-selection";
 import {
   requireCurrentTeam,
   type CurrentTeamContext
@@ -19,6 +20,8 @@ type EventOption = {
   name: string;
   eventDate: string;
   eventType: string;
+  courseId: string | null;
+  holeSelection: EventHoleSelection | null;
 };
 
 type CourseOption = {
@@ -56,7 +59,7 @@ async function getEnterScoreData(
     const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
     const eventsQuery = supabase
       .from("events")
-      .select("id, name, event_date, event_type")
+      .select("id, name, event_date, event_type, course_id, hole_selection")
       .eq("team_id", team.id);
 
     const eventsRequest = (activeSeason
@@ -139,7 +142,9 @@ async function getEnterScoreData(
           id: event.id,
           name: event.name,
           eventDate: event.event_date,
-          eventType: event.event_type
+          eventType: event.event_type,
+          courseId: event.course_id,
+          holeSelection: event.hole_selection
         })),
         courses: (coursesResult.data ?? []).map((course) => ({
           id: course.id,
@@ -197,7 +202,9 @@ async function getEnterScoreData(
         id: event.id,
         name: event.name,
         eventDate: event.event_date,
-        eventType: event.event_type
+        eventType: event.event_type,
+          courseId: event.course_id,
+          holeSelection: event.hole_selection
       })),
       courses: (coursesResult.data ?? []).map((course) => ({
         id: course.id,
@@ -255,6 +262,7 @@ export default async function EnterScorePage() {
           events={scoreEntry.events}
           courses={scoreEntry.courses}
           isPlayerEntryLocked={scoreEntry.isPlayerEntryLocked}
+          previewReadOnly={process.env.VERCEL_ENV !== "production"}
         />
       )}
     </section>

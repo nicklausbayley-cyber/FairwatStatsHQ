@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import type { EventListRow } from "../../lib/events/events";
+import type { EventListRow, EventCourseOption } from "../../lib/events/events";
+import { eventHoleSelectionLabel, type EventHoleSelection } from "../../lib/events/hole-selection";
+import { EventCourseFields } from "./event-course-fields";
 import {
   Badge,
   Message,
@@ -19,6 +21,8 @@ import {
 
 type EventsTableProps = {
   events: EventListRow[];
+  courses: EventCourseOption[];
+  previewReadOnly?: boolean;
 };
 
 type EventType = EventListRow["event_type"];
@@ -28,6 +32,8 @@ type FormState = {
   eventType: EventType | "";
   eventDate: string;
   courseName: string;
+  courseId: string;
+  holeSelection: EventHoleSelection | "";
   location: string;
 };
 
@@ -70,6 +76,8 @@ function formStateFromEvent(event: EventListRow): FormState {
     eventType: event.event_type,
     eventDate: event.event_date,
     courseName: event.course_name ?? "",
+    courseId: event.course_id ?? "",
+    holeSelection: event.hole_selection ?? "",
     location: event.location ?? ""
   };
 }
@@ -104,6 +112,10 @@ function validateForm(form: FormState) {
     return "Event date is required.";
   }
 
+  if (form.courseId && !form.holeSelection) {
+    return "Choose Front 9, Back 9, or Full 18 for this course.";
+  }
+
   return null;
 }
 
@@ -127,13 +139,14 @@ async function eventRequest(method: "PATCH" | "DELETE", body: unknown) {
   return result;
 }
 
-export function EventsTable({ events }: EventsTableProps) {
+export function EventsTable({ events, courses, previewReadOnly = false }: EventsTableProps) {
   const router = useRouter();
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [pendingEventId, setPendingEventId] = useState<string | null>(null);
 
   async function deleteEvent(event: EventListRow) {
+    if (previewReadOnly) return;
     const confirmed = window.confirm(
       `Delete ${event.name}? This will not delete any related rounds.`
     );
@@ -209,7 +222,14 @@ export function EventsTable({ events }: EventsTableProps) {
                     </Badge>
                   </div>
                   <Cell label="Date" value={formatEventDate(event.event_date)} />
-                  <Cell label="Course" value={event.course_name ?? "Not set"} />
+                  <div>
+                    <Cell label="Course" value={event.course_name ?? "Not set"} />
+                    {event.hole_selection ? (
+                      <p className="mt-1 text-xs font-semibold text-emerald-800">
+                        {eventHoleSelectionLabel(event.hole_selection, courses.find(c => c.id === event.course_id)?.configuredHoles === 9)}
+                      </p>
+                    ) : null}
+                  </div>
                   <Cell label="Location" value={event.location ?? "Not set"} />
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 xl:hidden">
@@ -239,7 +259,7 @@ export function EventsTable({ events }: EventsTableProps) {
                       <button
                         type="button"
                         onClick={() => deleteEvent(event)}
-                        disabled={pendingEventId === event.id}
+                        disabled={previewReadOnly || pendingEventId === event.id}
                         className={dangerButtonClassName}
                       >
                         {pendingEventId === event.id ? "Deleting..." : "Delete"}
@@ -251,6 +271,8 @@ export function EventsTable({ events }: EventsTableProps) {
                 {isEditing ? (
                   <EditEventForm
                     eventItem={event}
+                    courses={courses}
+                    previewReadOnly={previewReadOnly}
                     onCancel={() => setEditingEventId(null)}
                     onSuccess={handleEditSuccess}
                   />
@@ -266,10 +288,14 @@ export function EventsTable({ events }: EventsTableProps) {
 
 function EditEventForm({
   eventItem,
+  courses,
+  previewReadOnly,
   onCancel,
   onSuccess
 }: {
   eventItem: EventListRow;
+  courses: EventCourseOption[];
+  previewReadOnly: boolean;
   onCancel: () => void;
   onSuccess: (message: string) => void;
 }) {
@@ -294,6 +320,10 @@ function EditEventForm({
       setMessage({ type: "error", text: validationError });
       return;
     }
+    if (previewReadOnly) {
+      setMessage({ type: "success", text: "Draft looks valid. Preview mode did not update this event." });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -303,6 +333,8 @@ function EditEventForm({
         name: form.name.trim(),
         eventType: form.eventType,
         eventDate: form.eventDate,
+        courseId: form.courseId || null,
+        holeSelection: form.holeSelection || null,
         courseName: form.courseName.trim() || null,
         location: form.location.trim() || null
       });
@@ -374,25 +406,11 @@ function EditEventForm({
           />
         </label>
 
-        <label className="space-y-2">
-          <span className="text-sm font-semibold text-slate-700">Course name</span>
-          <input
-            type="text"
-            value={form.courseName}
-            onChange={(event) => updateField("courseName", event.target.value)}
-            className={inputClassName}
-          />
-        </label>
-
-        <label className="space-y-2 md:col-span-2 xl:col-span-5">
-          <span className="text-sm font-semibold text-slate-700">Location</span>
-          <input
-            type="text"
-            value={form.location}
-            onChange={(event) => updateField("location", event.target.value)}
-            className={inputClassName}
-          />
-        </label>
+        <EventCourseFields
+          courses={courses}
+          value={form}
+          onChange={changes => setForm(current => ({ ...current, ...changes }))}
+        />
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -408,7 +426,7 @@ function EditEventForm({
           disabled={isSubmitting}
           className={primaryButtonClassName}
         >
-          {isSubmitting ? "Saving..." : "Save Changes"}
+          {isSubmitting ? "Saving..." : previewReadOnly ? "Validate Draft (No Save)" : "Save Changes"}
         </button>
       </div>
     </form>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { expectedEventHoleNumbers, eventHoleSelectionLabel, type EventHoleSelection } from "../../lib/events/hole-selection";
 import {
   EmptyState,
   Message,
@@ -28,6 +29,8 @@ type EventOption = {
   name: string;
   eventDate: string;
   eventType: string;
+  courseId: string | null;
+  holeSelection: EventHoleSelection | null;
 };
 
 type CourseOption = {
@@ -69,6 +72,7 @@ type ScoreFormProps = {
   events: EventOption[];
   courses: CourseOption[];
   isPlayerEntryLocked?: boolean;
+  previewReadOnly?: boolean;
 };
 
 type SubmitRoundInput = {
@@ -251,7 +255,8 @@ export function ScoreForm({
   players,
   events,
   courses,
-  isPlayerEntryLocked = false
+  isPlayerEntryLocked = false,
+  previewReadOnly = false
 }: ScoreFormProps) {
   const defaultCourseId = courses[0]?.id ?? "";
   const lockedPlayer = isPlayerEntryLocked ? players[0] ?? null : null;
@@ -268,13 +273,21 @@ export function ScoreForm({
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const holeTotals = useMemo(() => calculateHoleTotals(holeEntries), [holeEntries]);
+  const selectedEvent = events.find(event => event.id === form.eventId) ?? null;
+  const selectedEventSelection = selectedEvent?.courseId === form.courseId
+    ? selectedEvent?.holeSelection ?? null
+    : null;
+  const eventLocksCourse = Boolean(selectedEvent?.courseId && selectedEvent?.holeSelection);
 
   useEffect(() => {
-    if (entryMode !== "hole-by-hole" || !form.courseId) {
+    if ((!selectedEventSelection && entryMode !== "hole-by-hole") || !form.courseId) {
       return;
     }
 
     let isCurrent = true;
+
+    const courseIdAtRequest = form.courseId;
+    const eventIdAtRequest = form.eventId;
 
     async function loadCourseHoles() {
       setIsLoadingHoles(true);
@@ -299,7 +312,29 @@ export function ScoreForm({
         }));
 
         setCourseHoles(nextCourseHoles);
-        setHoleEntries(createHoleEntries(nextCourseHoles));
+        const selectedNumbers = selectedEventSelection
+          ? new Set(expectedEventHoleNumbers(selectedEventSelection))
+          : null;
+        const selectedHoles = selectedNumbers
+          ? nextCourseHoles.filter(hole => selectedNumbers.has(hole.holeNumber))
+          : nextCourseHoles;
+        setHoleEntries(createHoleEntries(selectedHoles));
+        if (selectedNumbers) {
+          const configuredNumbers = nextCourseHoles.map(hole => hole.holeNumber);
+          const valid = selectedNumbers.size === selectedHoles.length &&
+            (nextCourseHoles.length === 9 || nextCourseHoles.length === 18) &&
+            configuredNumbers.every((number, index) => number === index + 1);
+          if (!valid) {
+            setMessage({
+              type: "error",
+              text: "The event's selected holes are not fully configured on this course. Ask your coach to check course setup."
+            });
+          } else {
+            setForm(current => current.courseId === courseIdAtRequest && current.eventId === eventIdAtRequest
+              ? { ...current, par: String(selectedHoles.reduce((sum, hole) => sum + hole.par, 0)) }
+              : current);
+          }
+        }
       } catch (error) {
         if (!isCurrent) {
           return;
@@ -326,7 +361,30 @@ export function ScoreForm({
     return () => {
       isCurrent = false;
     };
-  }, [entryMode, form.courseId]);
+  }, [entryMode, form.courseId, form.eventId, selectedEventSelection]);
+
+  function selectEvent(eventId: string) {
+    const event = events.find(item => item.id === eventId);
+    const selection = event?.courseId ? event.holeSelection : null;
+    const holes = selection === "full_18" ? "18" : selection ? "9" : null;
+    const defaults = holes ? getDefaultsForHoles(holes) : null;
+
+    setForm(current => ({
+      ...current,
+      eventId,
+      ...(event?.courseId ? { courseId: event.courseId } : {}),
+      ...(event ? { playedOn: event.eventDate } : {}),
+      ...(holes && defaults ? {
+        holes,
+        par: defaults.par,
+        fairwaysPossible: defaults.fairwaysPossible,
+        girPossible: defaults.girPossible
+      } : {})
+    }));
+    setCourseHoles([]);
+    setHoleEntries([]);
+    setMessage(null);
+  }
 
   function updateField(field: keyof FormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -403,6 +461,14 @@ export function ScoreForm({
 
     if (courseHoles.length !== 9 && courseHoles.length !== 18) {
       return "The selected course needs a saved 9- or 18-hole setup before hole-by-hole entry.";
+    }
+
+    if (selectedEventSelection) {
+      const expected = expectedEventHoleNumbers(selectedEventSelection);
+      const actual = holeEntries.map(hole => hole.holeNumber);
+      if (actual.length !== expected.length || expected.some((hole, index) => actual[index] !== hole)) {
+        return "The event's selected holes are unavailable. Check the course setup before submitting.";
+      }
     }
 
     for (const hole of holeEntries) {
@@ -487,6 +553,10 @@ export function ScoreForm({
       setMessage({ type: "error", text: input });
       return;
     }
+    if (previewReadOnly) {
+      setMessage({ type: "success", text: "Scorecard draft validated. No round was saved in Preview." });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -501,7 +571,12 @@ export function ScoreForm({
       if (result.success) {
         setForm(createInitialState(defaultCourseId, defaultPlayerId));
         if (entryMode === "hole-by-hole") {
-          setHoleEntries(createHoleEntries(courseHoles));
+          const selectedNumbers = selectedEventSelection
+            ? new Set(expectedEventHoleNumbers(selectedEventSelection))
+            : null;
+          setHoleEntries(createHoleEntries(selectedNumbers
+            ? courseHoles.filter(hole => selectedNumbers.has(hole.holeNumber))
+            : courseHoles));
         }
       }
     } catch (error) {
@@ -522,6 +597,11 @@ export function ScoreForm({
       onSubmit={handleSubmit}
       className={cn(appPanelClassName, "space-y-6 p-6 sm:p-8")}
     >
+      {previewReadOnly ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          Preview mode: scorecards may be tested, but no scores will be saved.
+        </p>
+      ) : null}
       {message ? (
         <Message type={message.type}>{message.text}</Message>
       ) : null}
@@ -550,7 +630,7 @@ export function ScoreForm({
         <SelectField
           label="Event optional"
           value={form.eventId}
-          onChange={(value) => updateField("eventId", value)}
+          onChange={selectEvent}
         >
           <option value="">No event</option>
           {events.map((event) => (
@@ -568,6 +648,10 @@ export function ScoreForm({
             setCourseHoles([]);
             setHoleEntries([]);
           }}
+          disabled={eventLocksCourse}
+          helpText={eventLocksCourse
+            ? "This course is assigned to the selected event."
+            : undefined}
         >
           <option value="">No course selected</option>
           {courses.map((course) => (
@@ -629,10 +713,17 @@ export function ScoreForm({
           holeTotals={holeTotals}
           isLoading={isLoadingHoles}
           courseSelected={Boolean(form.courseId)}
+          nineLabel={selectedEventSelection === "back_9" ? "Back Nine" : selectedEventSelection === "front_9" ? "Front Nine" : "Nine-Hole Scorecard"}
           onUpdateHole={updateHoleEntry}
         />
       ) : (
-        <SummaryEntrySection form={form} updateField={updateField} updateHoles={updateHoles} />
+        <SummaryEntrySection
+          form={form}
+          updateField={updateField}
+          updateHoles={updateHoles}
+          lockedHoles={eventLocksCourse}
+          selectedEventLabel={selectedEventSelection ? eventHoleSelectionLabel(selectedEventSelection) : null}
+        />
       )}
 
       <label className="block space-y-2">
@@ -657,7 +748,7 @@ export function ScoreForm({
           disabled={isSubmitting || players.length === 0}
           className={primaryButtonClassName}
         >
-          {isSubmitting ? "Submitting..." : "Submit Round"}
+          {isSubmitting ? "Submitting..." : previewReadOnly ? "Validate Scorecard (No Save)" : "Submit Round"}
         </button>
       </div>
     </form>
@@ -669,9 +760,11 @@ function HoleByHoleSection({
   holeTotals,
   isLoading,
   courseSelected,
+  nineLabel,
   onUpdateHole
 }: {
   holeEntries: HoleEntry[];
+  nineLabel: string;
   holeTotals: ReturnType<typeof calculateHoleTotals>;
   isLoading: boolean;
   courseSelected: boolean;
@@ -791,7 +884,7 @@ function HoleByHoleSection({
 
       {holeEntries.length === 9 ? (
         <ScorecardNine
-          title="Nine-Hole Scorecard"
+          title={nineLabel}
           subtotalLabel="TOTAL"
           holeEntries={frontNine}
           startIndex={0}
@@ -1327,11 +1420,15 @@ function formatScoreToPar(holeEntries: HoleEntry[]) {
 function SummaryEntrySection({
   form,
   updateField,
-  updateHoles
+  updateHoles,
+  lockedHoles = false,
+  selectedEventLabel
 }: {
   form: FormState;
   updateField: (field: keyof FormState, value: string) => void;
   updateHoles: (value: "9" | "18") => void;
+  lockedHoles?: boolean;
+  selectedEventLabel: string | null;
 }) {
   return (
     <div className="space-y-5">
@@ -1340,12 +1437,18 @@ function SummaryEntrySection({
         <select
           value={form.holes}
           onChange={(event) => updateHoles(event.target.value as "9" | "18")}
+          disabled={lockedHoles}
           className={inputClassName}
         >
           <option value="9">9 holes</option>
           <option value="18">18 holes</option>
         </select>
       </label>
+      {lockedHoles && selectedEventLabel ? (
+        <p className="text-sm text-slate-600">
+          This event uses {selectedEventLabel}. The event determines the number of holes.
+        </p>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <NumberField label="Score" value={form.score} onChange={(value) => updateField("score", value)} min={1} required />
