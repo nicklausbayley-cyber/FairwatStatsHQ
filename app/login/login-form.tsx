@@ -11,6 +11,9 @@ type FormMessage = {
 };
 
 async function getSignedInRedirectPath(role: string | null | undefined) {
+  const supportResponse = await fetch("/api/support", { cache: "no-store" });
+  if (supportResponse.ok) return "/support";
+
   if (role === "player") {
     return "/enter-score";
   }
@@ -100,6 +103,8 @@ export function LoginForm() {
         text:
           nextPath === "/enter-score"
             ? "Signed in. Opening score entry..."
+            : nextPath === "/support"
+              ? "Signed in. Opening support center..."
             : nextPath === "/onboarding"
               ? "Signed in. Opening onboarding..."
               : nextPath === "/setup"

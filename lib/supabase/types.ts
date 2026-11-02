@@ -434,7 +434,31 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      support_team_inventory: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
+      support_team_dashboard: {
+        Args: { target_team_id: string };
+        Returns: Json;
+      };
+      support_team_courses: {
+        Args: { target_team_id: string };
+        Returns: Json;
+      };
+      support_save_course: {
+        Args: {
+          p_actor_id: string;
+          p_team_id: string;
+          p_course_id: string | null;
+          p_name: string;
+          p_location: string | null;
+          p_holes: Json;
+        };
+        Returns: string;
+      };
+    };
     Enums: {
       user_role: "admin" | "coach" | "player";
       event_type:
