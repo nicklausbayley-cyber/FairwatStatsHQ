@@ -42,9 +42,6 @@ async function getSignedInRedirectPath(role: string | null | undefined) {
     return "/onboarding";
   }
 
-  const supportResponse = await fetch("/api/support");
-  if (supportResponse.ok) return "/support";
-
   return null;
 }
 

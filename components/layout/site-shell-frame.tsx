@@ -12,6 +12,7 @@ type ShellUser = {
   role: UserRole | "platform";
   playerProfileHref: string | null;
   isPlatformAdmin: boolean;
+  isSupportAdmin: boolean;
 };
 
 const publicAuthPaths = [
