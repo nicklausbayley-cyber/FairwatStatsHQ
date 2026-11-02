@@ -114,7 +114,7 @@ function validateEventDetails(input: EventDetailsInput): EventValidationResult {
       eventDate,
       courseName,
       courseId,
-      holeSelection,
+      holeSelection: holeSelection as EventHoleSelection | null,
       location
     }
   };
