@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     if (result.error || !result.data) return fail("Course could not be saved.", 500);
 
     // Always record the actor and target; do not treat an unlogged change as success.
-    const { error: auditError } = await admin.from("support_audit_logs" as "teams").insert({
+    const { error: auditError } = await admin.from("support_audit_logs" as never).insert({
       actor_id: access.data.user.id,
       actor_email: access.data.email,
       team_id: teamId,
