@@ -13,6 +13,7 @@ type HeaderUser = {
   role: UserRole | "platform";
   playerProfileHref: string | null;
   isPlatformAdmin: boolean;
+  isSupportAdmin: boolean;
 };
 
 const staffNavItems = [
@@ -58,12 +59,13 @@ function getNavItems(user: HeaderUser | null) {
     return [];
   }
 
+  const supportNavItem = user.isSupportAdmin ? [{ href: "/support", label: "Support" }] : [];
   const platformNavItem = user.isPlatformAdmin
     ? [{ href: "/onboarding", label: "Onboarding" }]
     : [];
 
   if (user.role === "platform") {
-    return platformNavItem;
+    return [...supportNavItem, ...platformNavItem];
   }
 
   if (user.role === "player") {
@@ -72,11 +74,12 @@ function getNavItems(user: HeaderUser | null) {
       ...(user.playerProfileHref
         ? [{ href: user.playerProfileHref, label: "My Profile" }]
         : []),
+      ...supportNavItem,
       ...platformNavItem
     ];
   }
 
-  return [...staffNavItems, ...platformNavItem];
+  return [...staffNavItems, ...supportNavItem, ...platformNavItem];
 }
 
 export function SiteHeader({
