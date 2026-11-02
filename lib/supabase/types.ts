@@ -439,6 +439,10 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: Json;
       };
+      support_team_dashboard: {
+        Args: { target_team_id: string };
+        Returns: Json;
+      };
     };
     Enums: {
       user_role: "admin" | "coach" | "player";

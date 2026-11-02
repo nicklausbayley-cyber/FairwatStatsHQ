@@ -125,6 +125,77 @@ function percentageFromTotals(
   return totals.hit / totals.possible;
 }
 
+export type DashboardSourceRows = {
+  teamName: string;
+  activeSeasonName: string | null;
+  players: PlayerLookupRow[];
+  events: EventLookupRow[];
+  rounds: RoundRow[];
+};
+
+/**
+ * Shared, read-only dashboard calculations.
+ * The team's dashboard and the support preview use the same math and lineup rules.
+ */
+export function buildDashboardFromRows({
+  teamName,
+  activeSeasonName,
+  players,
+  events,
+  rounds
+}: DashboardSourceRows): DashboardData {
+    const playerNames = new Map(
+      players.map((player) => [
+        player.id,
+        `${player.first_name} ${player.last_name}`
+      ])
+    );
+    const eventNames = new Map(events.map((event) => [event.id, event.name]));
+
+    const recentRounds = rounds.slice(0, 10).map((round) => ({
+      id: round.id,
+      playerName: playerNames.get(round.player_id) ?? "Unknown player",
+      eventName: round.event_id
+        ? eventNames.get(round.event_id) ?? "Unknown event"
+        : null,
+      playedOn: round.played_on,
+      score: round.score,
+      putts: round.putts,
+      fairwaysHit: round.fairways_hit,
+      fairwaysPossible: round.fairways_possible,
+      greensInRegulation: round.greens_in_regulation,
+      girPossible: round.gir_possible,
+      penalties: round.penalties,
+      threePutts: round.three_putts
+    }));
+
+    return {
+      status: "ready",
+      teamName,
+      activeSeasonName,
+      summary: {
+        totalPlayers: players.filter((p) => p.status !== "inactive").length,
+        totalEvents: events.length,
+        totalRounds: rounds.length,
+        averageScore: average(rounds.map((round) => round.score)),
+        averagePutts: average(rounds.map((round) => round.putts)),
+        fairwayPercentage: percentageFromTotals(
+          rounds,
+          "fairways_hit",
+          "fairways_possible"
+        ),
+        girPercentage: percentageFromTotals(
+          rounds,
+          "greens_in_regulation",
+          "gir_possible"
+        ),
+        averagePenalties: average(rounds.map((round) => round.penalties))
+      },
+      lineupPerformance: buildLineupPerformance(players.filter((p) => p.status !== "inactive"), rounds),
+      recentRounds
+    };
+}
+
 export async function getDashboardData(
   currentTeam: CurrentTeamContext
 ): Promise<DashboardData> {
@@ -188,56 +259,13 @@ export async function getDashboardData(
     const events = (eventsResult.data ?? []) as EventLookupRow[];
     const rounds = (roundsResult.data ?? []) as RoundRow[];
 
-    const playerNames = new Map(
-      players.map((player) => [
-        player.id,
-        `${player.first_name} ${player.last_name}`
-      ])
-    );
-    const eventNames = new Map(events.map((event) => [event.id, event.name]));
-
-    const recentRounds = rounds.slice(0, 10).map((round) => ({
-      id: round.id,
-      playerName: playerNames.get(round.player_id) ?? "Unknown player",
-      eventName: round.event_id
-        ? eventNames.get(round.event_id) ?? "Unknown event"
-        : null,
-      playedOn: round.played_on,
-      score: round.score,
-      putts: round.putts,
-      fairwaysHit: round.fairways_hit,
-      fairwaysPossible: round.fairways_possible,
-      greensInRegulation: round.greens_in_regulation,
-      girPossible: round.gir_possible,
-      penalties: round.penalties,
-      threePutts: round.three_putts
-    }));
-
-    return {
-      status: "ready",
+    return buildDashboardFromRows({
       teamName: team.name,
       activeSeasonName: activeSeason?.name ?? null,
-      summary: {
-        totalPlayers: players.filter((p) => p.status !== "inactive").length,
-        totalEvents: events.length,
-        totalRounds: rounds.length,
-        averageScore: average(rounds.map((round) => round.score)),
-        averagePutts: average(rounds.map((round) => round.putts)),
-        fairwayPercentage: percentageFromTotals(
-          rounds,
-          "fairways_hit",
-          "fairways_possible"
-        ),
-        girPercentage: percentageFromTotals(
-          rounds,
-          "greens_in_regulation",
-          "gir_possible"
-        ),
-        averagePenalties: average(rounds.map((round) => round.penalties))
-      },
-      lineupPerformance: buildLineupPerformance(players.filter((p) => p.status !== "inactive"), rounds),
-      recentRounds
-    };
+      players,
+      events,
+      rounds
+    });
   } catch (error) {
     return {
       status: "error",

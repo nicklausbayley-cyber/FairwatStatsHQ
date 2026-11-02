@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 type Team = { id: string; name: string; school_name: string | null; contact_email: string | null; coaches: number; players: number; courses: number; events: number; rounds: number; activeSeason: string | null };
@@ -82,7 +83,8 @@ export function SupportConsole({ previewReadOnly = false }: { previewReadOnly?: 
             {([["Coaches",selectedTeam.coaches],["Players",selectedTeam.players],["Events",selectedTeam.events],["Rounds",selectedTeam.rounds],["Courses",selectedTeam.courses],["Active season",selectedTeam.activeSeason || "Not set"]] as const).map(([label,value])=>
               <div key={label} className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">{label}</p><p className="font-bold">{value}</p></div>)}
           </div>
-          <p className="mt-4 text-xs text-slate-500">Team data is read-only in this workspace. No impersonation of coach accounts.</p>
+          <Link href={`/support/teams/${selectedTeam.id}`} className="mt-5 inline-flex rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">View Team Dashboard (Read Only)</Link>
+          <p className="mt-3 text-xs text-slate-500">Support view uses the team's dashboard calculations but cannot open coach editing pages or impersonate an account.</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="text-lg font-bold">Manage courses</h2>

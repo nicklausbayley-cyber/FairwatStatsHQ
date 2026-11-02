@@ -19,6 +19,7 @@ import {
 
 type DashboardOverviewProps = {
   dashboardData: DashboardData;
+  readOnly?: boolean;
 };
 
 type MetricCard = {
@@ -153,9 +154,11 @@ function trendTone(
 }
 
 function LineupPerformanceRow({
-  player
+  player,
+  readOnly = false
 }: {
   player: DashboardLineupPerformance;
+  readOnly?: boolean;
 }) {
   const hasBenchmark = player.qualifyingRounds > 0;
 
@@ -182,12 +185,16 @@ function LineupPerformanceRow({
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Player
         </p>
-        <Link
-          href={`/players/${player.playerId}`}
-          className="font-semibold text-gray-950 hover:text-green-800"
-        >
-          {player.playerName}
-        </Link>
+        {readOnly ? (
+          <span className="font-semibold text-gray-950">{player.playerName}</span>
+        ) : (
+          <Link
+            href={`/players/${player.playerId}`}
+            className="font-semibold text-gray-950 hover:text-green-800"
+          >
+            {player.playerName}
+          </Link>
+        )}
         {!hasBenchmark ? (
           <p className="mt-1 text-xs font-medium text-slate-500">
             No benchmark yet
@@ -284,7 +291,7 @@ function LineupPerformanceRow({
   );
 }
 
-function RecentRoundRow({ round }: { round: DashboardRound }) {
+function RecentRoundRow({ round, readOnly = false }: { round: DashboardRound; readOnly?: boolean }) {
   return (
     <div className={cn(tableRowClassName, "lg:grid-cols-[1.2fr_1.2fr_1fr_0.6fr_0.6fr_0.9fr_0.8fr_0.7fr_0.7fr_0.9fr] lg:items-center")}>
       <div>
@@ -350,18 +357,22 @@ function RecentRoundRow({ round }: { round: DashboardRound }) {
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 lg:hidden">
           Actions
         </p>
-        <Link
-          href={`/rounds/${round.id}`}
-          className={`${secondaryButtonClassName} px-3 py-1.5 text-xs`}
-        >
-          View Details
-        </Link>
+        {readOnly ? (
+          <span className="text-sm text-slate-500">Read only</span>
+        ) : (
+          <Link
+            href={`/rounds/${round.id}`}
+            className={`${secondaryButtonClassName} px-3 py-1.5 text-xs`}
+          >
+            View Details
+          </Link>
+        )}
       </div>
     </div>
   );
 }
 
-export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
+export function DashboardOverview({ dashboardData, readOnly = false }: DashboardOverviewProps) {
   if (dashboardData.status === "error") {
     return (
       <section className="space-y-6">
@@ -409,7 +420,7 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
               Counting Differential compares each player&apos;s score with the team&apos;s fourth-lowest score for that event. Negative is better. Nine- and 18-hole results are adjusted to a common 9-hole basis. All active players stay visible so lineup movement is easy to track.
             </p>
           </div>
-          <Link href="/statistics" className={secondaryButtonClassName}>View Full Statistics</Link>
+          {!readOnly ? <Link href="/statistics" className={secondaryButtonClassName}>View Full Statistics</Link> : null}
         </div>
       </div>
 
@@ -434,7 +445,7 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
 
           <div className="divide-y divide-gray-100">
             {dashboardData.lineupPerformance.map((player) => (
-              <LineupPerformanceRow key={player.playerId} player={player} />
+              <LineupPerformanceRow key={player.playerId} player={player} readOnly={readOnly} />
             ))}
           </div>
         </div>
@@ -479,7 +490,7 @@ export function DashboardOverview({ dashboardData }: DashboardOverviewProps) {
 
           <div className="divide-y divide-gray-100">
             {dashboardData.recentRounds.map((round) => (
-              <RecentRoundRow key={round.id} round={round} />
+              <RecentRoundRow key={round.id} round={round} readOnly={readOnly} />
             ))}
           </div>
         </div>
