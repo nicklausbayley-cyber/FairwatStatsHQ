@@ -1,4 +1,5 @@
 import type { CurrentTeamContext } from "../auth/get-current-team";
+import type { EventHoleSelection } from "./hole-selection";
 
 export type EventReportRound = {
   id: string;
@@ -35,6 +36,7 @@ export type EventReportData =
           | "tournament";
         eventDate: string;
         courseName: string | null;
+        holeSelection: EventHoleSelection | null;
         location: string | null;
       };
       rounds: EventReportRound[];
@@ -153,7 +155,7 @@ export async function getEventReport(
       await supabase
         .from("events")
         .select(
-          "id, team_id, name, event_type, event_date, course_name, location"
+          "id, team_id, name, event_type, event_date, course_name, hole_selection, location"
         )
         .eq("id", eventId)
         .eq("team_id", team.id)
@@ -320,6 +322,7 @@ export async function getEventReport(
         eventType: event.event_type,
         eventDate: event.event_date,
         courseName: event.course_name,
+        holeSelection: event.hole_selection,
         location: event.location
       },
       rounds: reportRounds,

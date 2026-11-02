@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { eventHoleSelectionLabel } from "../../../../lib/events/hole-selection";
 import { requireTeamStaff } from "../../../../lib/auth/get-current-team";
 import {
   getEventReport,
@@ -258,6 +259,9 @@ export default async function EventReportPage({
               "Not set"
             }
           />
+          {report.event.holeSelection ? (
+            <InfoItem label="Holes played" value={eventHoleSelectionLabel(report.event.holeSelection)} />
+          ) : null}
         </dl>
       </div>
 

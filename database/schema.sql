@@ -71,6 +71,8 @@ create table if not exists public.events (
   event_type public.event_type not null,
   event_date date not null,
   course_name text,
+  course_id uuid,
+  hole_selection text check (hole_selection is null or hole_selection in ('front_9', 'back_9', 'full_18')),
   location text,
   created_at timestamptz not null default now()
 );
@@ -82,6 +84,16 @@ create table if not exists public.courses (
   location text,
   created_at timestamptz not null default now()
 );
+
+-- Defined after courses to preserve first-time schema creation order.
+do $
+begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.events'::regclass and conname = 'events_course_id_fkey') then
+    alter table public.events add constraint events_course_id_fkey
+      foreign key (course_id) references public.courses(id) on delete set null;
+  end if;
+end
+$;
 
 create table if not exists public.course_holes (
   id uuid primary key default gen_random_uuid(),
