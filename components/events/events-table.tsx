@@ -22,6 +22,7 @@ import {
 type EventsTableProps = {
   events: EventListRow[];
   courses: EventCourseOption[];
+  previewReadOnly?: boolean;
 };
 
 type EventType = EventListRow["event_type"];
@@ -138,13 +139,14 @@ async function eventRequest(method: "PATCH" | "DELETE", body: unknown) {
   return result;
 }
 
-export function EventsTable({ events, courses }: EventsTableProps) {
+export function EventsTable({ events, courses, previewReadOnly = false }: EventsTableProps) {
   const router = useRouter();
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [pendingEventId, setPendingEventId] = useState<string | null>(null);
 
   async function deleteEvent(event: EventListRow) {
+    if (previewReadOnly) return;
     const confirmed = window.confirm(
       `Delete ${event.name}? This will not delete any related rounds.`
     );
@@ -257,7 +259,7 @@ export function EventsTable({ events, courses }: EventsTableProps) {
                       <button
                         type="button"
                         onClick={() => deleteEvent(event)}
-                        disabled={pendingEventId === event.id}
+                        disabled={previewReadOnly || pendingEventId === event.id}
                         className={dangerButtonClassName}
                       >
                         {pendingEventId === event.id ? "Deleting..." : "Delete"}
@@ -270,6 +272,7 @@ export function EventsTable({ events, courses }: EventsTableProps) {
                   <EditEventForm
                     eventItem={event}
                     courses={courses}
+                    previewReadOnly={previewReadOnly}
                     onCancel={() => setEditingEventId(null)}
                     onSuccess={handleEditSuccess}
                   />
@@ -286,11 +289,13 @@ export function EventsTable({ events, courses }: EventsTableProps) {
 function EditEventForm({
   eventItem,
   courses,
+  previewReadOnly,
   onCancel,
   onSuccess
 }: {
   eventItem: EventListRow;
   courses: EventCourseOption[];
+  previewReadOnly: boolean;
   onCancel: () => void;
   onSuccess: (message: string) => void;
 }) {
@@ -313,6 +318,10 @@ function EditEventForm({
 
     if (validationError) {
       setMessage({ type: "error", text: validationError });
+      return;
+    }
+    if (previewReadOnly) {
+      setMessage({ type: "success", text: "Draft looks valid. Preview mode did not update this event." });
       return;
     }
 
@@ -417,7 +426,7 @@ function EditEventForm({
           disabled={isSubmitting}
           className={primaryButtonClassName}
         >
-          {isSubmitting ? "Saving..." : "Save Changes"}
+          {isSubmitting ? "Saving..." : previewReadOnly ? "Validate Draft (No Save)" : "Save Changes"}
         </button>
       </div>
     </form>

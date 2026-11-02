@@ -6,11 +6,13 @@ import { Badge, EmptyState, PageHeader } from "../ui/primitives";
 type EventsListProps = {
   eventsData: EventsData;
   showAddEventForm?: boolean;
+  previewReadOnly?: boolean;
 };
 
 export function EventsList({
   eventsData,
-  showAddEventForm = false
+  showAddEventForm = false,
+  previewReadOnly = false
 }: EventsListProps) {
   return (
     <section className="space-y-6">
@@ -36,8 +38,14 @@ export function EventsList({
         }
       />
 
+      {previewReadOnly ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Preview mode: you can configure and validate event drafts, but no events or scores will be saved here.
+        </p>
+      ) : null}
+
       {eventsData.status === "ready" && showAddEventForm ? (
-        <AddEventForm activeSeasonName={eventsData.activeSeasonName} courses={eventsData.courses} />
+        <AddEventForm activeSeasonName={eventsData.activeSeasonName} courses={eventsData.courses} previewReadOnly={previewReadOnly} />
       ) : null}
 
       {eventsData.status === "error" ? (
@@ -59,7 +67,7 @@ export function EventsList({
       ) : null}
 
       {eventsData.status === "ready" && eventsData.events.length > 0 ? (
-        <EventsTable events={eventsData.events} courses={eventsData.courses} />
+        <EventsTable events={eventsData.events} courses={eventsData.courses} previewReadOnly={previewReadOnly} />
       ) : null}
     </section>
   );

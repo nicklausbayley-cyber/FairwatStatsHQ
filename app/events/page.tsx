@@ -8,5 +8,5 @@ export default async function EventsPage() {
   const currentTeam = await requireTeamStaff();
   const eventsData = await getTeamEvents(currentTeam);
 
-  return <EventsList eventsData={eventsData} showAddEventForm />;
+  return <EventsList eventsData={eventsData} showAddEventForm previewReadOnly={process.env.VERCEL_ENV !== "production"} />;
 }

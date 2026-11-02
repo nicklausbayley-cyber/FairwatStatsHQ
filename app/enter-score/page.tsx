@@ -262,6 +262,7 @@ export default async function EnterScorePage() {
           events={scoreEntry.events}
           courses={scoreEntry.courses}
           isPlayerEntryLocked={scoreEntry.isPlayerEntryLocked}
+          previewReadOnly={process.env.VERCEL_ENV !== "production"}
         />
       )}
     </section>

@@ -200,6 +200,10 @@ function validateSummaryInput(input: SubmitRoundInput) {
 }
 
 export async function POST(request: Request) {
+  if (process.env.VERCEL_ENV !== "production") {
+    return jsonResult("Preview is read-only. No scores were submitted.", 403);
+  }
+
   let input: SubmitRoundInput;
 
   try {

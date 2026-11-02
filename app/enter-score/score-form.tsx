@@ -72,6 +72,7 @@ type ScoreFormProps = {
   events: EventOption[];
   courses: CourseOption[];
   isPlayerEntryLocked?: boolean;
+  previewReadOnly?: boolean;
 };
 
 type SubmitRoundInput = {
@@ -254,7 +255,8 @@ export function ScoreForm({
   players,
   events,
   courses,
-  isPlayerEntryLocked = false
+  isPlayerEntryLocked = false,
+  previewReadOnly = false
 }: ScoreFormProps) {
   const defaultCourseId = courses[0]?.id ?? "";
   const lockedPlayer = isPlayerEntryLocked ? players[0] ?? null : null;
@@ -551,6 +553,10 @@ export function ScoreForm({
       setMessage({ type: "error", text: input });
       return;
     }
+    if (previewReadOnly) {
+      setMessage({ type: "success", text: "Scorecard draft validated. No round was saved in Preview." });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -591,6 +597,11 @@ export function ScoreForm({
       onSubmit={handleSubmit}
       className={cn(appPanelClassName, "space-y-6 p-6 sm:p-8")}
     >
+      {previewReadOnly ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          Preview mode: scorecards may be tested, but no scores will be saved.
+        </p>
+      ) : null}
       {message ? (
         <Message type={message.type}>{message.text}</Message>
       ) : null}
@@ -737,7 +748,7 @@ export function ScoreForm({
           disabled={isSubmitting || players.length === 0}
           className={primaryButtonClassName}
         >
-          {isSubmitting ? "Submitting..." : "Submit Round"}
+          {isSubmitting ? "Submitting..." : previewReadOnly ? "Validate Scorecard (No Save)" : "Submit Round"}
         </button>
       </div>
     </form>

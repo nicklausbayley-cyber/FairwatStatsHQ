@@ -158,6 +158,10 @@ function revalidateEventViews() {
 }
 
 export async function POST(request: Request) {
+  if (process.env.VERCEL_ENV !== "production") {
+    return jsonResult("Preview is read-only. No events were changed.", 403);
+  }
+
   let input: EventDetailsInput;
 
   try {
@@ -240,6 +244,10 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  if (process.env.VERCEL_ENV !== "production") {
+    return jsonResult("Preview is read-only. No events were changed.", 403);
+  }
+
   let input: UpdateEventInput;
 
   try {
@@ -339,6 +347,10 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (process.env.VERCEL_ENV !== "production") {
+    return jsonResult("Preview is read-only. No events were changed.", 403);
+  }
+
   let input: DeleteEventInput;
 
   try {

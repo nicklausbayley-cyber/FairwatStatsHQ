@@ -74,10 +74,12 @@ function validateForm(form: FormState) {
 
 export function AddEventForm({
   activeSeasonName,
-  courses
+  courses,
+  previewReadOnly = false
 }: {
   activeSeasonName: string | null;
   courses: EventCourseOption[];
+  previewReadOnly?: boolean;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(initialFormState);
@@ -99,6 +101,10 @@ export function AddEventForm({
 
     if (validationError) {
       setMessage({ type: "error", text: validationError });
+      return;
+    }
+    if (previewReadOnly) {
+      setMessage({ type: "success", text: "Draft looks valid. Preview mode did not save this event." });
       return;
     }
 
@@ -166,7 +172,7 @@ export function AddEventForm({
               disabled={isSubmitting}
               className={primaryButtonClassName}
             >
-              {isSubmitting ? "Adding..." : "Add Event"}
+              {isSubmitting ? "Adding..." : previewReadOnly ? "Validate Draft (No Save)" : "Add Event"}
             </button>
           </div>
         }
