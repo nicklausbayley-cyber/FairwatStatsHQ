@@ -11,6 +11,9 @@ type FormMessage = {
 };
 
 async function getSignedInRedirectPath(role: string | null | undefined) {
+  const supportResponse = await fetch("/api/support", { cache: "no-store" });
+  if (supportResponse.ok) return "/support";
+
   if (role === "player") {
     return "/enter-score";
   }
