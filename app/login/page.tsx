@@ -12,6 +12,9 @@ export default async function LoginPage() {
     getSupportAdminStatus()
   ]);
 
+  if (platformAdmin.data) redirect("/onboarding");
+  if (supportAdmin.data) redirect("/support");
+
   if (currentTeam.data) {
     if (!isTeamStaff(currentTeam.data.role)) {
       redirect("/enter-score");
@@ -20,11 +23,6 @@ export default async function LoginPage() {
     redirect(setup.status === "ready" && !setup.progress.complete ? "/setup" : "/dashboard");
   }
 
-  if (platformAdmin.data) {
-    redirect("/onboarding");
-  }
-
-  if (supportAdmin.data) redirect("/support");
 
   return <LoginForm />;
 }
