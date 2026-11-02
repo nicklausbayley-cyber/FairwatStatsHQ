@@ -149,6 +149,8 @@ export type Database = {
             | "tournament";
           event_date: string;
           course_name: string | null;
+          course_id: string | null;
+          hole_selection: "front_9" | "back_9" | "full_18" | null;
           location: string | null;
           created_at: string;
         };
@@ -165,6 +167,8 @@ export type Database = {
             | "tournament";
           event_date: string;
           course_name?: string | null;
+          course_id?: string | null;
+          hole_selection?: "front_9" | "back_9" | "full_18" | null;
           location?: string | null;
           created_at?: string;
         };
@@ -181,6 +185,8 @@ export type Database = {
             | "tournament";
           event_date?: string;
           course_name?: string | null;
+          course_id?: string | null;
+          hole_selection?: "front_9" | "back_9" | "full_18" | null;
           location?: string | null;
           created_at?: string;
         };

@@ -1,4 +1,5 @@
 import { getActiveSeasonForTeam } from "../seasons/active-season";
+import { getConfiguredHoleCount, type EventHoleSelection } from "./hole-selection";
 import type { CurrentTeamContext } from "../auth/get-current-team";
 
 export type EventListRow = {
@@ -7,7 +8,16 @@ export type EventListRow = {
   event_type: "practice" | "match" | "invitational" | "qualifier" | "tournament";
   event_date: string;
   course_name: string | null;
+  course_id: string | null;
+  hole_selection: EventHoleSelection | null;
   location: string | null;
+};
+
+export type EventCourseOption = {
+  id: string;
+  name: string;
+  location: string | null;
+  configuredHoles: 9 | 18 | null;
 };
 
 export type EventsData =
@@ -16,6 +26,7 @@ export type EventsData =
       teamName: string;
       activeSeasonName: string | null;
       events: EventListRow[];
+      courses: EventCourseOption[];
     }
   | {
       status: "empty";
@@ -35,15 +46,36 @@ export async function getTeamEvents(
     const activeSeason = await getActiveSeasonForTeam(supabase, team.id);
     const eventsQuery = supabase
       .from("events")
-      .select("id, name, event_type, event_date, course_name, location")
+      .select("id, name, event_type, event_date, course_name, course_id, hole_selection, location")
       .eq("team_id", team.id);
 
-    const { data: events, error: eventsError } = await (activeSeason
-      ? eventsQuery.eq("season_id", activeSeason.id)
-      : eventsQuery
-    )
-      .order("event_date", { ascending: true })
-      .order("name", { ascending: true });
+    const [eventsResult, coursesResult] = await Promise.all([
+      (activeSeason ? eventsQuery.eq("season_id", activeSeason.id) : eventsQuery)
+        .order("event_date", { ascending: true })
+        .order("name", { ascending: true }),
+      supabase.from("courses").select("id,name,location")
+        .eq("team_id", team.id).order("name")
+    ]);
+    const { data: events, error: eventsError } = eventsResult;
+    if (coursesResult.error) {
+      return { status: "error", message: coursesResult.error.message };
+    }
+
+    const courseRows = coursesResult.data ?? [];
+    const courseIds = courseRows.map(course => course.id);
+    const holesResult = courseIds.length
+      ? await supabase.from("course_holes").select("course_id,hole_number").in("course_id", courseIds)
+      : { data: [] as Array<{ course_id: string; hole_number: number }>, error: null };
+    if (holesResult.error) {
+      return { status: "error", message: holesResult.error.message };
+    }
+
+    const courses: EventCourseOption[] = courseRows.map(course => ({
+      ...course,
+      configuredHoles: getConfiguredHoleCount(
+        (holesResult.data ?? []).filter(hole => hole.course_id === course.id).map(hole => hole.hole_number)
+      )
+    }));
 
     if (eventsError) {
       return {
@@ -56,7 +88,8 @@ export async function getTeamEvents(
       status: "ready",
       teamName: team.name,
       activeSeasonName: activeSeason?.name ?? null,
-      events: events ?? []
+      events: events ?? [],
+      courses
     };
   } catch (error) {
     return {

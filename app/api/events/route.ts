@@ -1,4 +1,6 @@
 import { revalidatePath } from "next/cache";
+import { createClient } from "../../../lib/supabase/server";
+import { allowedEventHoleSelections, getConfiguredHoleCount, isEventHoleSelection, isUuid, type EventHoleSelection } from "../../../lib/events/hole-selection";
 import { NextResponse } from "next/server";
 import {
   authStatusCode,
@@ -23,6 +25,8 @@ type EventDetailsInput = {
   eventType?: string;
   eventDate?: string;
   courseName?: string | null;
+  courseId?: string | null;
+  holeSelection?: string | null;
   location?: string | null;
 };
 
@@ -39,6 +43,8 @@ type ValidatedEventDetails = {
   eventType: EventType;
   eventDate: string;
   courseName: string | null;
+  courseId: string | null;
+  holeSelection: EventHoleSelection | null;
   location: string | null;
 };
 
@@ -62,8 +68,10 @@ function validateEventDetails(input: EventDetailsInput): EventValidationResult {
   const name = input.name?.trim() ?? "";
   const eventType = input.eventType?.trim() ?? "";
   const eventDate = input.eventDate?.trim() ?? "";
-  const courseName = input.courseName?.trim() || null;
-  const location = input.location?.trim() || null;
+  const courseName = typeof input.courseName === "string" ? input.courseName.trim() || null : null;
+  const location = typeof input.location === "string" ? input.location.trim() || null : null;
+  const courseId = typeof input.courseId === "string" ? input.courseId.trim() || null : null;
+  const holeSelection = typeof input.holeSelection === "string" ? input.holeSelection.trim() || null : null;
 
   if (!name) {
     return { error: "Event name is required.", event: null };
@@ -88,6 +96,16 @@ function validateEventDetails(input: EventDetailsInput): EventValidationResult {
     return { error: "Event date must be a valid date.", event: null };
   }
 
+  if (courseId !== null && !isUuid(courseId)) {
+    return { error: "Choose a valid configured course.", event: null };
+  }
+  if (courseId && !isEventHoleSelection(holeSelection)) {
+    return { error: "Choose Front 9, Back 9, or Full 18.", event: null };
+  }
+  if (!courseId && holeSelection !== null) {
+    return { error: "Choose a saved course before selecting its holes.", event: null };
+  }
+
   return {
     error: null,
     event: {
@@ -95,9 +113,40 @@ function validateEventDetails(input: EventDetailsInput): EventValidationResult {
       eventType,
       eventDate,
       courseName,
+      courseId,
+      holeSelection,
       location
     }
   };
+}
+
+type TeamSupabase = Awaited<ReturnType<typeof createClient>>;
+
+/** Never trust an event course or its selected holes from the browser. */
+async function resolveEventCourse(
+  supabase: TeamSupabase,
+  teamId: string,
+  event: ValidatedEventDetails
+): Promise<{ event: ValidatedEventDetails; error: string | null }> {
+  if (!event.courseId) return { event, error: null };
+
+  const { data: course, error: courseError } = await supabase.from("courses")
+    .select("id,name,location").eq("id", event.courseId).eq("team_id", teamId).maybeSingle();
+  if (courseError || !course) {
+    return { event, error: "This course was not found for your team." };
+  }
+
+  const { data: holes, error: holesError } = await supabase.from("course_holes")
+    .select("hole_number").eq("course_id", course.id);
+  if (holesError) return { event, error: "Unable to verify this course's hole setup." };
+  const holeCount = getConfiguredHoleCount((holes ?? []).map(h => h.hole_number));
+  if (!event.holeSelection || !allowedEventHoleSelections(holeCount).includes(event.holeSelection)) {
+    return { event, error: "This course must have a complete 9- or 18-hole setup matching the selected holes." };
+  }
+
+  return { error: null, event: {
+    ...event, courseName: course.name, location: event.location ?? course.location
+  } };
 }
 
 function revalidateEventViews() {
@@ -141,6 +190,10 @@ export async function POST(request: Request) {
     }
 
     const { supabase, team } = currentTeam.data;
+    const resolved = await resolveEventCourse(supabase, team.id, event);
+    if (resolved.error) return jsonResult(resolved.error);
+    const savedEvent = resolved.event;
+
     const { data: activeSeason, error: seasonError } = await supabase
       .from("seasons")
       .select("id")
@@ -157,11 +210,13 @@ export async function POST(request: Request) {
     const { error } = await supabase.from("events").insert({
       team_id: team.id,
       season_id: activeSeason?.id ?? null,
-      name: event.name,
-      event_type: event.eventType,
-      event_date: event.eventDate,
-      course_name: event.courseName,
-      location: event.location
+      name: savedEvent.name,
+      event_type: savedEvent.eventType,
+      event_date: savedEvent.eventDate,
+      course_name: savedEvent.courseName,
+      course_id: savedEvent.courseId,
+      hole_selection: savedEvent.holeSelection,
+      location: savedEvent.location
     });
 
     if (error) {
@@ -223,14 +278,36 @@ export async function PATCH(request: Request) {
     }
 
     const { supabase, team } = currentTeam.data;
+    const resolved = await resolveEventCourse(supabase, team.id, event);
+    if (resolved.error) return jsonResult(resolved.error);
+    const savedEvent = resolved.event;
+
+    const { data: existing, error: existingError } = await supabase.from("events")
+      .select("id,course_id,hole_selection")
+      .eq("id", eventId).eq("team_id", team.id).maybeSingle();
+    if (existingError) return jsonResult("Could not verify the event.", 500);
+    if (!existing) return jsonResult("Event not found for this team.", 404);
+
+    if (existing.course_id !== savedEvent.courseId || existing.hole_selection !== savedEvent.holeSelection) {
+      const { count, error: roundError } = await supabase.from("rounds")
+        .select("id", { count: "exact", head: true })
+        .eq("team_id", team.id).eq("event_id", eventId);
+      if (roundError) return jsonResult("Could not check event scores.", 500);
+      if ((count ?? 0) > 0) {
+        return jsonResult("This event already has scores. Its course and hole selection cannot be changed.", 409);
+      }
+    }
+
     const { data: updatedEvent, error } = await supabase
       .from("events")
       .update({
-        name: event.name,
-        event_type: event.eventType,
-        event_date: event.eventDate,
-        course_name: event.courseName,
-        location: event.location
+        name: savedEvent.name,
+        event_type: savedEvent.eventType,
+        event_date: savedEvent.eventDate,
+        course_name: savedEvent.courseName,
+        course_id: savedEvent.courseId,
+        hole_selection: savedEvent.holeSelection,
+        location: savedEvent.location
       })
       .eq("id", eventId)
       .eq("team_id", team.id)
