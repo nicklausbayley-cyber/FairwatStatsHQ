@@ -116,6 +116,12 @@ let attempted=await request(notAdmin,"/api/onboarding",{
 assert.equal(attempted.res.status,403,"Only a platform admin may assign an existing coach");
 console.log("PASS: team coach cannot use platform onboarding to grant access");
 
+const blockedOrigin=await request(platform,"/api/onboarding",{
+  method:"POST",headers:{Origin:"https://untrusted.example.invalid"},body:JSON.stringify(payload)
+});
+assert.equal(blockedOrigin.res.status,403,
+  "A platform admin request from a different origin must be rejected");
+
 let onboard=await request(platform,"/api/onboarding",{
   method:"POST",body:JSON.stringify(payload)
 });
