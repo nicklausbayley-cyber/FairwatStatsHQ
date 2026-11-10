@@ -18,7 +18,7 @@ permissions:
 jobs:
   real-auth-switching:
     name: Local Supabase Auth + Next.js HTTP
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright 1.56 Chromium supports this runner OS
     timeout-minutes: 25
     env:
       SUPABASE_CLI: supabase@2.81.3
