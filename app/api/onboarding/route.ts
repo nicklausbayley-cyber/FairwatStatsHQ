@@ -2,6 +2,7 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { isSameOriginRequest } from "../../../lib/auth/same-origin";
 import type { User } from "@supabase/supabase-js";
 import {
   getPlatformAdminStatus,
@@ -992,6 +993,10 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return jsonResult("Invalid request origin.", 403);
+  }
+
   const platformAdmin = await requirePlatformAdminForApi();
 
   if (!platformAdmin.data) {
