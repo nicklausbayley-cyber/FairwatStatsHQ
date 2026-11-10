@@ -928,24 +928,23 @@ export async function GET() {
     teams.map((team) => [team.id, team.name])
   );
 
-  const staffAccounts: AccountStatusItem[] = (staffAccessResult.data ?? [])
-    .map((access) => {
-      const profile = profilesById.get(access.user_id);
-      if (!profile) return null;
-      const authUser = authUsersById.get(access.user_id);
-      return {
-        id: `staff-${access.user_id}-${access.team_id}`,
-        teamId: access.team_id,
-        profileId: access.user_id,
-        playerId: null,
-        name: profile.full_name,
-        email: profile.email || authUser?.email || null,
-        role: access.role,
-        status: getAccountStatus(authUser),
-        lastSignInAt: authUser?.last_sign_in_at ?? null
-      };
-    })
-    .filter((account): account is AccountStatusItem => account !== null);
+  const staffAccounts: AccountStatusItem[] = [];
+  for (const access of staffAccessResult.data ?? []) {
+    const profile = profilesById.get(access.user_id);
+    if (!profile) continue;
+    const authUser = authUsersById.get(access.user_id);
+    staffAccounts.push({
+      id: `staff-${access.user_id}-${access.team_id}`,
+      teamId: access.team_id,
+      profileId: access.user_id,
+      playerId: null,
+      name: profile.full_name,
+      email: profile.email || authUser?.email || null,
+      role: access.role,
+      status: getAccountStatus(authUser),
+      lastSignInAt: authUser?.last_sign_in_at ?? null
+    });
+  }
 
   const playerAccounts: AccountStatusItem[] = players.map((player) => {
     const profile = player.profile_id
