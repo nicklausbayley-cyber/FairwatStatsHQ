@@ -462,6 +462,14 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      revoke_staff_team_access: {
+        Args: {
+          target_user_id: string;
+          target_team_id: string;
+          actor_user_id: string;
+        };
+        Returns: Json;
+      };
       support_team_inventory: {
         Args: Record<PropertyKey, never>;
         Returns: Json;
