@@ -1,0 +1,53 @@
+name: Multi-Team Coach Access — PostgreSQL RLS Tests
+
+on:
+  pull_request:
+    paths:
+      - 'database/migrations/add-staff-team-access.sql'
+      - 'database/tests/staff-team-access/**'
+      - '.github/workflows/multi-team-access-db-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-rls-tests:
+    name: PostgreSQL 17 authorization checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: fshq_access_tests
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-ci-only
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fshq_access_tests"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out candidate code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Prepare fictional PostgreSQL schema and accounts
+        env:
+          DATABASE_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$DATABASE_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d fshq_access_tests             < database/tests/staff-team-access/bootstrap.sql
+
+      - name: Apply candidate membership migration
+        env:
+          DATABASE_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$DATABASE_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d fshq_access_tests             < database/migrations/add-staff-team-access.sql
+
+      - name: Prove authorized reads, writes, revocations, and player isolation
+        env:
+          DATABASE_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$DATABASE_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d fshq_access_tests             < database/tests/staff-team-access/assertions.sql
