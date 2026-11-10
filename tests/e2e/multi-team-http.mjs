@@ -17,6 +17,16 @@ assert.equal(new URL(api).hostname,"127.0.0.1", "Never use production Supabase")
 assert.ok(anon&&service);
 const admin=createClient(api,service,{auth:{persistSession:false,autoRefreshToken:false}});
 
+// Simulate platform-admin onboarding: assign the existing boys coach to girls
+// without altering their Auth account or home profile.
+const {error:assignError}=await admin.from("staff_team_access").upsert({
+  user_id:fixture.subjects.dual.id,
+  team_id:fixture.teams.girls,
+  role:"coach"
+},{onConflict:"user_id,team_id"});
+assert.ifError(assignError);
+console.log("PASS: linked existing coach to girls through a second membership");
+
 const checks=[];
 const verify=(name,fn)=>checks.push((async()=>{await fn();console.log("PASS:",name)})());
 function session() {
@@ -86,10 +96,10 @@ async function visiblePlayers(s) {
 
 const dual=await login("dual");
 let roster=await page(dual,"/roster");
-assert.match(roster,/CI Boys Varsity Golf/);
+assert.ok(roster.includes("CI Boys Varsity Golf"), "Boys roster brand not visible");
 assert.match(roster,/Bradley/);
 assert.doesNotMatch(roster,/Gemma GirlsOnly|Riley RivalOnly/);
-assert.match(roster,/Active golf team/);
+assert.ok(roster.includes("Active golf team"), "Multi-team coach selector not visible");
 let dashboard=await page(dual,"/dashboard");
 assert.match(dashboard,/CI Boys Varsity Golf/);
 let rows=await visiblePlayers(dual);
@@ -101,7 +111,7 @@ assert.equal(switchResult.res.status,200,JSON.stringify(switchResult.body));
 assert.equal(switchResult.body.teamId,fixture.teams.girls);
 assert.equal(dual.jar.get("fshq_selected_team"),fixture.teams.girls);
 roster=await page(dual,"/roster");
-assert.match(roster,/CI Girls Varsity Golf/);
+assert.ok(roster.includes("CI Girls Varsity Golf"), "Girls roster brand not visible");
 assert.match(roster,/Gemma/);
 assert.doesNotMatch(roster,/Bradley BoysOnly|Riley RivalOnly/);
 dashboard=await page(dual,"/dashboard");
@@ -119,7 +129,7 @@ console.log("PASS: forged team and cross-origin requests rejected");
 const single=await login("girlsOnly");
 roster=await page(single,"/roster");
 assert.match(roster,/Gemma/);
-assert.doesNotMatch(roster,/Active golf team/);
+assert.ok(!roster.includes("Active golf team"), "Single-team coach selector should be hidden");
 invalid=await postSelection(single,fixture.teams.boys);
 assert.equal(invalid.res.status,403);
 assert.deepEqual((await visiblePlayers(single)).map(x=>x.team_id),[fixture.teams.girls]);
@@ -140,7 +150,7 @@ const {error:revokeError}=await admin.from("staff_team_access").delete()
   .eq("user_id",fixture.subjects.dual.id).eq("team_id",fixture.teams.girls);
 assert.ifError(revokeError);
 roster=await page(dual,"/roster");
-assert.match(roster,/CI Boys Varsity Golf/);
+assert.ok(roster.includes("CI Boys Varsity Golf"), "Boys roster brand not visible");
 assert.match(roster,/Bradley/);
 assert.doesNotMatch(roster,/Gemma GirlsOnly/);
 rows=await visiblePlayers(dual);
