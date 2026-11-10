@@ -96,6 +96,14 @@ jobs:
       - name: Verify real login, boys/girls switching, isolation, revocation
         run: node tests/e2e/multi-team-http.mjs
 
+      - name: Install pinned Chromium browser for interactive UI QA
+        run: |
+          npm install -g playwright@1.56.1
+          playwright install --with-deps chromium
+
+      - name: Verify browser sign-in and React team dropdown in both directions
+        run: PLAYWRIGHT_PACKAGE_PATH="$(npm root -g)/playwright" node tests/e2e/multi-team-browser.mjs
+
       - name: Print app error details only if test fails
         if: failure()
         run: |
