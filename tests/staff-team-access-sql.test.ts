@@ -32,7 +32,7 @@ test("team membership helpers validate the authenticated account and current sta
     assert.match(section, /security definer set search_path = ''/);
     assert.match(section, /auth\.uid\(\)/);
     assert.match(section, /join public\.profiles p on p\.id = sta\.user_id/);
-    assert.match(section, /p\.role in \('admin', 'coach'\)/);
+    assert.match(section, /p\.role in \('(?:admin', 'coach|coach', 'admin)'\)/);
     assert.match(section, /sta\.team_id = target_team_id/);
   }
 });
