@@ -11,7 +11,7 @@
     "test:insights": "tsc --project tests/tsconfig.json && node --test .test-build/tests/*.test.js",
     "test:setup": "tsc --project tests/tsconfig.json && node --test .test-build/tests/coach-setup.test.js",
     "test:event-holes": "tsc --project tests/tsconfig.json && node --test .test-build/tests/event-holes.test.js",
-    "test:team-access": "tsc --project tests/tsconfig.json && node --test .test-build/tests/team-selection.test.js .test-build/tests/staff-team-access-sql.test.js"
+    "test:team-access": "tsc --project tests/tsconfig.json && node --test .test-build/tests/team-selection.test.js .test-build/tests/staff-team-access-sql.test.js .test-build/tests/same-origin.test.js"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.0",
