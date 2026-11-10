@@ -45,6 +45,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      staff_team_access: {
+        Row: {
+          user_id: string;
+          team_id: string;
+          role: "admin" | "coach";
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          team_id: string;
+          role: "admin" | "coach";
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          team_id?: string;
+          role?: "admin" | "coach";
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
