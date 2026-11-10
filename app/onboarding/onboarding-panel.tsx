@@ -461,7 +461,7 @@ export function OnboardingPanel() {
         type: "error",
         text: getErrorMessage(
           error,
-          "Could not create coach/admin login. Please try again."
+          "Could not assign coach/admin access. Please try again."
         )
       });
     } finally {
@@ -866,8 +866,8 @@ export function OnboardingPanel() {
       <form onSubmit={handleCreateStaffLogin}>
         <FormSection
           eyebrow="Step 2"
-          title="Send Coach/Admin Invitation"
-          description="Create or connect the team profile and email the coach or administrator a secure link to choose their password."
+          title="Assign Coach/Admin to Team"
+          description="New coaches receive a password invitation. Existing staff can be added to a second team using the same email, without losing access to their first team."
           footer={
             <div className="flex justify-end">
               <button
@@ -875,7 +875,7 @@ export function OnboardingPanel() {
                 disabled={!hasTeams || pendingForm === "staff"}
                 className={primaryButtonClassName}
               >
-                {pendingForm === "staff" ? "Sending..." : "Send Invitation"}
+                {pendingForm === "staff" ? "Saving..." : "Save Coach Access"}
               </button>
             </div>
           }

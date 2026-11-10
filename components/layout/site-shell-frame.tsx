@@ -10,6 +10,8 @@ type ShellUser = {
   name: string;
   email: string;
   role: UserRole | "platform";
+  selectedTeamId?: string | null;
+  teamChoices?: Array<{ id: string; name: string; role: "admin" | "coach" }>;
   playerProfileHref: string | null;
   isPlatformAdmin: boolean;
   isSupportAdmin: boolean;

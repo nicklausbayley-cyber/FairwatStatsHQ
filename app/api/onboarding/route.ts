@@ -2,6 +2,7 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { isSameOriginRequest } from "../../../lib/auth/same-origin";
 import type { User } from "@supabase/supabase-js";
 import {
   getPlatformAdminStatus,
@@ -422,59 +423,66 @@ async function handleCreateStaffLogin(
   const email = normalizeEmail(readText(body, "email"));
   const role = readText(body, "role");
 
-  if (!teamId) {
-    return jsonResult("Choose a team for this login.");
-  }
-
-  if (!fullName) {
-    return jsonResult("Coach/admin full name is required.");
-  }
-
-  if (!email || !isValidEmail(email)) {
-    return jsonResult("Coach/admin email must be valid.");
-  }
-
-  if (!isStaffRole(role)) {
-    return jsonResult("Role must be admin or coach.");
-  }
+  if (!teamId) return jsonResult("Choose a team for this login.");
+  if (!fullName) return jsonResult("Coach/admin full name is required.");
+  if (!email || !isValidEmail(email)) return jsonResult("Coach/admin email must be valid.");
+  if (!isStaffRole(role)) return jsonResult("Role must be admin or coach.");
 
   const teamCheck = await ensureTeamExists(supabase, teamId);
+  if (teamCheck.error) return jsonResult(teamCheck.error);
 
-  if (teamCheck.error) {
-    return jsonResult(teamCheck.error);
-  }
-
-  const authUser = await getOrInviteAuthUser({
-    supabase,
-    email,
-    fullName,
-    redirectTo
-  });
-
+  const authUser = await getOrInviteAuthUser({ supabase, email, fullName, redirectTo });
   if (authUser.error || !authUser.user) {
     return jsonResult(`Could not create Auth user: ${authUser.error}`, 500);
   }
 
-  const profileError = await upsertProfile({
-    supabase,
-    userId: authUser.user.id,
-    teamId,
-    role,
-    fullName,
-    email
-  });
+  const { data: existingProfile, error: lookupError } = await supabase
+    .from("profiles")
+    .select("id, team_id, role")
+    .eq("id", authUser.user.id)
+    .maybeSingle();
 
-  if (profileError) {
-    return jsonResult(`Could not save profile: ${profileError.message}`, 500);
+  if (lookupError) return jsonResult(`Could not verify profile: ${lookupError.message}`, 500);
+  if (existingProfile?.role === "player") {
+    return jsonResult(
+      "This email belongs to a player account. Review the account before granting coaching access.",
+      409
+    );
+  }
+
+  if (!existingProfile) {
+    const profileError = await upsertProfile({
+      supabase,
+      userId: authUser.user.id,
+      teamId,
+      role,
+      fullName,
+      email
+    });
+    if (profileError) {
+      return jsonResult(`Could not save profile: ${profileError.message}`, 500);
+    }
+  }
+  // Existing staff profile is intentionally NOT overwritten when a second team is added.
+  // Profile role/team_id remain the original home assignment; team-specific roles
+  // are stored in staff_team_access.
+  const { error: membershipError } = await supabase
+    .from("staff_team_access")
+    .upsert(
+      { user_id: authUser.user.id, team_id: teamId, role },
+      { onConflict: "user_id,team_id" }
+    );
+
+  if (membershipError) {
+    return jsonResult(`Could not assign coach to team: ${membershipError.message}`, 500);
   }
 
   revalidateOnboardingViews();
-
   return NextResponse.json(
     {
       success: true,
       message: authUser.existed
-        ? `${fullName} was connected to ${teamCheck.team?.name}. This email already has an account, so no new invitation was sent.`
+        ? `${fullName} now has ${role} access to ${teamCheck.team?.name}. Their existing login and other team assignments remain unchanged.`
         : `Account invitation sent to ${email}. ${fullName} can create a password from the email.`,
       userId: authUser.user.id
     },
@@ -629,6 +637,21 @@ async function handleCreatePlayerLogin(
 
   if (authUser.error || !authUser.user) {
     return jsonResult(`Could not create Auth user: ${authUser.error}`, 500);
+  }
+
+  const { data: priorProfile, error: priorProfileError } = await supabase
+    .from("profiles")
+    .select("team_id, role")
+    .eq("id", authUser.user.id)
+    .maybeSingle();
+  if (priorProfileError) {
+    return jsonResult(`Could not verify existing account: ${priorProfileError.message}`, 500);
+  }
+  if (priorProfile && (priorProfile.role !== "player" || priorProfile.team_id !== teamId)) {
+    return jsonResult(
+      "This email is already assigned to another role or team. Review the existing account instead of replacing it.",
+      409
+    );
   }
 
   const profileError = await upsertProfile({
@@ -830,7 +853,7 @@ export async function GET() {
     return adminClient.response;
   }
 
-  const [teamsResult, playersResult, profilesResult, authUsersResult] =
+  const [teamsResult, playersResult, profilesResult, staffAccessResult, authUsersResult] =
     await Promise.all([
       adminClient.supabase
         .from("teams")
@@ -849,6 +872,9 @@ export async function GET() {
         .from("profiles")
         .select("id, team_id, role, full_name, email")
         .order("full_name", { ascending: true }),
+      adminClient.supabase
+        .from("staff_team_access")
+        .select("user_id, team_id, role"),
       listAllAuthUsers(adminClient.supabase)
     ]);
 
@@ -869,6 +895,13 @@ export async function GET() {
   if (profilesResult.error) {
     return jsonResult(
       `Could not load profiles: ${profilesResult.error.message}`,
+      500
+    );
+  }
+
+  if (staffAccessResult.error) {
+    return jsonResult(
+      `Could not load staff team assignments: ${staffAccessResult.error.message}`,
       500
     );
   }
@@ -896,26 +929,23 @@ export async function GET() {
     teams.map((team) => [team.id, team.name])
   );
 
-  const staffAccounts: AccountStatusItem[] = profiles
-    .filter(
-      (profile) =>
-        profile.role === "admin" || profile.role === "coach"
-    )
-    .map((profile) => {
-      const authUser = authUsersById.get(profile.id);
-
-      return {
-        id: `profile-${profile.id}`,
-        teamId: profile.team_id,
-        profileId: profile.id,
-        playerId: null,
-        name: profile.full_name,
-        email: profile.email || authUser?.email || null,
-        role: profile.role,
-        status: getAccountStatus(authUser),
-        lastSignInAt: authUser?.last_sign_in_at ?? null
-      };
+  const staffAccounts: AccountStatusItem[] = [];
+  for (const access of staffAccessResult.data ?? []) {
+    const profile = profilesById.get(access.user_id);
+    if (!profile) continue;
+    const authUser = authUsersById.get(access.user_id);
+    staffAccounts.push({
+      id: `staff-${access.user_id}-${access.team_id}`,
+      teamId: access.team_id,
+      profileId: access.user_id,
+      playerId: null,
+      name: profile.full_name,
+      email: profile.email || authUser?.email || null,
+      role: access.role,
+      status: getAccountStatus(authUser),
+      lastSignInAt: authUser?.last_sign_in_at ?? null
     });
+  }
 
   const playerAccounts: AccountStatusItem[] = players.map((player) => {
     const profile = player.profile_id
@@ -963,6 +993,10 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return jsonResult("Invalid request origin.", 403);
+  }
+
   const platformAdmin = await requirePlatformAdminForApi();
 
   if (!platformAdmin.data) {

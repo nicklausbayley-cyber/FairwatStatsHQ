@@ -39,6 +39,12 @@ export async function SiteShell({ children }: { children: ReactNode }) {
           currentTeam.data.user.email ||
           "",
         role: currentTeam.data.role,
+        selectedTeamId: currentTeam.data.team.id,
+        teamChoices: currentTeam.data.availableTeams.map((team) => ({
+          id: team.id,
+          name: team.name,
+          role: team.role
+        })),
         playerProfileHref,
         isPlatformAdmin: platformAdmin.data !== null,
         isSupportAdmin: supportAdmin.data !== null,
