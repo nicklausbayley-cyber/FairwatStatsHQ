@@ -226,6 +226,9 @@ export function OnboardingPanel() {
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [players, setPlayers] = useState<PlayerOption[]>([]);
   const [accounts, setAccounts] = useState<AccountStatusItem[]>([]);
+  const [pendingRemovalKey, setPendingRemovalKey] = useState<string | null>(null);
+  const [removingAccessKey, setRemovingAccessKey] = useState<string | null>(null);
+  const [removalMessage, setRemovalMessage] = useState<FormMessage | null>(null);
   const [accountTeamFilter, setAccountTeamFilter] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -282,6 +285,16 @@ export function OnboardingPanel() {
           first.name.localeCompare(second.name)
       );
   }, [accounts, accountTeamFilter, teamNamesById]);
+
+  const staffAssignmentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const account of accounts) {
+      if (account.profileId && account.role !== "player") {
+        counts.set(account.profileId, (counts.get(account.profileId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [accounts]);
 
   const activeAccountCount = filteredAccounts.filter(
     (account) => account.status === "active"
@@ -466,6 +479,33 @@ export function OnboardingPanel() {
       });
     } finally {
       setPendingForm(null);
+    }
+  }
+
+  async function handleRemoveTeamAccess(account: AccountStatusItem) {
+    if (!account.profileId || !account.email) return;
+
+    const key = `${account.profileId}:${account.teamId}`;
+    setRemovingAccessKey(key);
+    setRemovalMessage(null);
+
+    try {
+      const result = await postOnboarding({
+        action: "remove-staff-team-access",
+        userId: account.profileId,
+        teamId: account.teamId,
+        email: account.email
+      });
+      setPendingRemovalKey(null);
+      await refreshAfterMutation(account.teamId);
+      setRemovalMessage({ type: "success", text: result.message });
+    } catch (error) {
+      setRemovalMessage({
+        type: "error",
+        text: getErrorMessage(error, "Could not remove team access. Please try again.")
+      });
+    } finally {
+      setRemovingAccessKey(null);
     }
   }
 
@@ -704,6 +744,16 @@ export function OnboardingPanel() {
             </select>
           </label>
 
+          {removalMessage ? (
+            <Message type={removalMessage.type}>{removalMessage.text}</Message>
+          ) : null}
+
+          <p className="text-xs text-slate-500">
+            Remove Access revokes only the selected team assignment. The coach's login,
+            other teams, players, rounds and event history are preserved. The last
+            remaining team assignment cannot be removed here.
+          </p>
+
           {filteredAccounts.length === 0 ? (
             <EmptyState message="No coach or player account records were found." />
           ) : (
@@ -757,20 +807,62 @@ export function OnboardingPanel() {
                       </td>
 
                       <td className="whitespace-nowrap px-4 py-3 text-right">
-                        {account.status === "invited" &&
-                        account.email ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              prepareInvitationResend(account.email!)
-                            }
-                            className={secondaryButtonClassName}
-                          >
-                            Prepare Resend
-                          </button>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
+                        <div className="flex flex-col items-end gap-2">
+                          {account.status === "invited" && account.email ? (
+                            <button
+                              type="button"
+                              onClick={() => prepareInvitationResend(account.email!)}
+                              className={secondaryButtonClassName}
+                            >
+                              Prepare Resend
+                            </button>
+                          ) : null}
+
+                          {account.role !== "player" && account.profileId && account.email ? (
+                            pendingRemovalKey === `${account.profileId}:${account.teamId}` ? (
+                              <div className="max-w-xs space-y-2 rounded-lg border border-red-200 bg-red-50 p-3 text-left">
+                                <p className="text-xs font-medium text-red-900">
+                                  Remove {account.name} from {teamNamesById.get(account.teamId) ?? "this team"}?
+                                  Their other teams will remain accessible.
+                                </p>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleRemoveTeamAccess(account)}
+                                    disabled={removingAccessKey !== null}
+                                    className="rounded-md bg-red-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                                  >
+                                    {removingAccessKey === `${account.profileId}:${account.teamId}`
+                                      ? "Removing..." : "Confirm Removal"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPendingRemovalKey(null)}
+                                    disabled={removingAccessKey !== null}
+                                    className={secondaryButtonClassName}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRemovalMessage(null);
+                                  setPendingRemovalKey(`${account.profileId}:${account.teamId}`);
+                                }}
+                                disabled={(staffAssignmentCounts.get(account.profileId) ?? 0) <= 1 || removingAccessKey !== null}
+                                title={(staffAssignmentCounts.get(account.profileId) ?? 0) <= 1
+                                  ? "Assign another team before removing this coach's last team."
+                                  : "Revoke access to this team only"}
+                                className="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                Remove Access
+                              </button>
+                            )
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ))}

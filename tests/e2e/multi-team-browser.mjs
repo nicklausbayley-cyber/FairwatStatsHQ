@@ -62,7 +62,35 @@ try {
   assert.equal(await page.getByRole("combobox",{name:"Active golf team"}).count(),0,
     "Single-team coach should not see selector");
   console.log("PASS: Chromium sign-out and single-team coach login hid team selector.");
-  console.log("ALL real-browser Supabase Auth and team-switching checks PASSED.");
+
+  await page.getByRole("button",{name:"Sign Out"}).click();
+  await page.waitForURL(url=>url.pathname==="/login",{timeout:45000});
+  await login("platform");
+  await page.goto(root+"/onboarding",{waitUntil:"domcontentloaded"});
+  const girlsRow=page.locator("tbody tr")
+    .filter({hasText:"Demo Dual Coach"})
+    .filter({hasText:"CI Girls Varsity Golf"});
+  await girlsRow.getByRole("button",{name:"Remove Access"}).waitFor({state:"visible"});
+  await girlsRow.getByRole("button",{name:"Remove Access"}).click();
+  await girlsRow.getByText("Their other teams will remain accessible.").waitFor({state:"visible"});
+  await girlsRow.getByRole("button",{name:"Confirm Removal"}).click();
+  await girlsRow.waitFor({state:"detached",timeout:45000});
+  const boysRow=page.locator("tbody tr")
+    .filter({hasText:"Demo Dual Coach"})
+    .filter({hasText:"CI Boys Varsity Golf"});
+  await boysRow.waitFor({state:"visible"});
+  assert.equal(await boysRow.getByRole("button",{name:"Remove Access"}).isDisabled(),true,
+    "Last team removal control must be disabled");
+  console.log("PASS: Chromium admin removed girls assignment after confirmation; boys remains.");
+
+  await page.getByRole("button",{name:"Sign Out"}).click();
+  await page.waitForURL(url=>url.pathname==="/login",{timeout:45000});
+  await login("dual");
+  await assertRoster("CI Boys Varsity Golf","Bradley","Gemma");
+  assert.equal(await page.getByRole("combobox",{name:"Active golf team"}).count(),0,
+    "Removed girls team must disappear from coach team selector");
+  console.log("PASS: Chromium removed coach sees only remaining boys team.");
+  console.log("ALL real-browser Supabase Auth and team-access revocation checks PASSED.");
 } finally {
   await browser.close();
 }

@@ -490,6 +490,67 @@ async function handleCreateStaffLogin(
   );
 }
 
+async function handleRemoveStaffTeamAccess(
+  supabase: AdminSupabaseClient,
+  body: JsonBody,
+  actorUserId: string
+) {
+  const userId = readText(body, "userId");
+  const teamId = readText(body, "teamId");
+  const expectedEmail = normalizeEmail(readText(body, "email"));
+
+  if (!userId || !teamId || !expectedEmail) {
+    return jsonResult("Choose a coach and the specific team to remove.");
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, role, full_name, email")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profileError) {
+    return jsonResult(`Could not verify coach: ${profileError.message}`, 500);
+  }
+
+  if (!profile || !isStaffRole(profile.role)) {
+    return jsonResult("That account is not an assigned coach or team admin.", 404);
+  }
+
+  if (normalizeEmail(profile.email) !== expectedEmail) {
+    return jsonResult("Coach account changed. Refresh the account list and try again.", 409);
+  }
+
+  const teamCheck = await ensureTeamExists(supabase, teamId);
+  if (teamCheck.error) return jsonResult(teamCheck.error, 404);
+
+  // Database RPC locks the staff profile and performs the home-team transfer,
+  // membership deletion and audit insert atomically.
+  const { data, error } = await supabase.rpc("revoke_staff_team_access", {
+    target_user_id: userId,
+    target_team_id: teamId,
+    actor_user_id: actorUserId
+  });
+
+  if (error) {
+    if (error.message.includes("LAST_TEAM_ASSIGNMENT")) {
+      return jsonResult("You cannot remove the coach's last team. Assign another team first.", 409);
+    }
+    if (error.message.includes("TEAM_ASSIGNMENT_NOT_FOUND")) {
+      return jsonResult("This team is no longer assigned to the coach. Refresh the list.", 409);
+    }
+    return jsonResult(`Could not remove team access: ${error.message}`, 500);
+  }
+
+  revalidateOnboardingViews();
+
+  return NextResponse.json({
+    success: true,
+    message: `${profile.full_name} no longer has access to ${teamCheck.team?.name}. Their remaining teams and login are unchanged.`,
+    result: data
+  }, { headers: { "Cache-Control": "no-store" } });
+}
+
 function parseRosterLines(rosterText: string) {
   const lines = rosterText
     .split(/\r?\n/)
@@ -1022,6 +1083,12 @@ export async function POST(request: Request) {
       return handleCreateTeam(adminClient.supabase, body);
     case "create-staff-login":
       return handleCreateStaffLogin(adminClient.supabase, body, accountSetupRedirect);
+    case "remove-staff-team-access":
+      return handleRemoveStaffTeamAccess(
+        adminClient.supabase,
+        body,
+        platformAdmin.data.user.id
+      );
     case "add-players":
       return handleAddPlayers(adminClient.supabase, body);
     case "create-player-login":

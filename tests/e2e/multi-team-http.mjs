@@ -231,24 +231,104 @@ const outsider=await login("outsider");
 assert.deepEqual((await visiblePlayers(outsider)).map(x=>x.team_id),[fixture.teams.outsider]);
 console.log("PASS: unrelated coach cannot read boys/girls data");
 
-// A stale selected-team cookie must never confer access after revocation.
-const {error:revokeError}=await admin.from("staff_team_access").delete()
-  .eq("user_id",fixture.subjects.dual.id).eq("team_id",fixture.teams.girls);
-assert.ifError(revokeError);
+// Test platform-admin revocation through the real onboarding endpoint.
+const revokePayload={
+  action:"remove-staff-team-access",
+  userId:fixture.subjects.dual.id,
+  teamId:fixture.teams.girls,
+  email:fixture.subjects.dual.email
+};
+let removeAttempt=await request(notAdmin,"/api/onboarding",{
+  method:"POST",body:JSON.stringify(revokePayload)
+});
+assert.equal(removeAttempt.res.status,403,
+  "An ordinary team coach must not revoke another coach's membership");
+removeAttempt=await request(platform,"/api/onboarding",{
+  method:"POST",headers:{Origin:"https://untrusted.example.invalid"},
+  body:JSON.stringify(revokePayload)
+});
+assert.equal(removeAttempt.res.status,403,"Cross-site revocation must be denied");
+
+let remove=await request(platform,"/api/onboarding",{
+  method:"POST",body:JSON.stringify(revokePayload)
+});
+let removedBody=JSON.parse(remove.text);
+assert.equal(remove.res.status,200,JSON.stringify(removedBody));
+assert.equal(removedBody.success,true);
+assert.equal(removedBody.result.remainingCount,1);
+assert.equal(removedBody.result.homeTeamId,fixture.teams.boys);
+console.log("PASS: platform admin removed girls team access through the real onboarding API");
+
 roster=await page(dual,"/roster");
-assert.ok(roster.includes("CI Boys Varsity Golf"), "Boys roster brand not visible");
+assert.ok(roster.includes("CI Boys Varsity Golf"),"Revoked team cookie must fall back to boys");
 assert.match(roster,/Bradley/);
 assert.doesNotMatch(roster,/Gemma GirlsOnly/);
 rows=await visiblePlayers(dual);
 assert.deepEqual(rows.map(x=>x.team_id),[fixture.teams.boys]);
 invalid=await postSelection(dual,fixture.teams.girls);
 assert.equal(invalid.res.status,403);
-console.log("PASS: revoked membership blocks HTTP switching and PostgREST reads");
+console.log("PASS: revocation blocks stale-cookie HTTP access and RLS immediately");
 
-// Restore the fictional girls assignment for the subsequent interactive browser QA.
-const {error:restoreError}=await admin.from("staff_team_access").upsert({
-  user_id:fixture.subjects.dual.id,team_id:fixture.teams.girls,role:"coach"
-},{onConflict:"user_id,team_id"});
-assert.ifError(restoreError);
+const lastTeam=await request(platform,"/api/onboarding",{
+  method:"POST",body:JSON.stringify({...revokePayload,teamId:fixture.teams.boys})
+});
+assert.equal(lastTeam.res.status,409,
+  "An admin must not remove the final team assignment");
+const boysStillExists=await admin.from("staff_team_access").select("team_id")
+  .eq("user_id",fixture.subjects.dual.id);
+assert.ifError(boysStillExists.error);
+assert.deepEqual(boysStillExists.data.map(x=>x.team_id),[fixture.teams.boys]);
+console.log("PASS: last-team revocation is blocked and leaves the coach signed in");
+
+const staleRepeat=await request(platform,"/api/onboarding",{
+  method:"POST",body:JSON.stringify(revokePayload)
+});
+assert.equal(staleRepeat.res.status,409,"Already-removed assignment must be rejected");
+
+// Test removal of the ORIGINAL home team, requiring atomic transfer to a
+// surviving membership with its OWN role (not the revoked team's role).
+const formerOutsiderHome=await admin.from("profiles").select("team_id,role")
+  .eq("id",fixture.subjects.outsider.id).single();
+assert.ifError(formerOutsiderHome.error);
+assert.equal(formerOutsiderHome.data.team_id,fixture.teams.outsider);
+const addSurviving=await request(platform,"/api/onboarding",{
+  method:"POST",
+  body:JSON.stringify({
+    action:"create-staff-login",
+    teamId:fixture.teams.boys,
+    fullName:"Demo Outsider Coach",
+    email:fixture.subjects.outsider.email,
+    role:"admin"
+  })
+});
+assert.equal(addSurviving.res.status,200,addSurviving.text.slice(0,300));
+const removeOriginal=await request(platform,"/api/onboarding",{
+  method:"POST",
+  body:JSON.stringify({
+    action:"remove-staff-team-access",
+    userId:fixture.subjects.outsider.id,
+    teamId:fixture.teams.outsider,
+    email:fixture.subjects.outsider.email
+  })
+});
+assert.equal(removeOriginal.res.status,200,removeOriginal.text.slice(0,300));
+const newHome=await admin.from("profiles").select("team_id,role")
+  .eq("id",fixture.subjects.outsider.id).single();
+assert.ifError(newHome.error);
+assert.equal(newHome.data.team_id,fixture.teams.boys);
+assert.equal(newHome.data.role,"admin");
+assert.deepEqual((await visiblePlayers(outsider)).map(x=>x.team_id),[fixture.teams.boys]);
+assert.ok((await page(outsider,"/roster")).includes("CI Boys Varsity Golf"));
+console.log("PASS: deleting the original home team transfers home and role to surviving boys assignment");
+
+// Restore the fictional girls assignment for subsequent interactive browser QA
+// through the same platform-admin onboarding API used by real customers.
+const restore=await request(platform,"/api/onboarding",{
+  method:"POST",body:JSON.stringify(payload)
+});
+assert.equal(restore.res.status,200,restore.text.slice(0,300));
+assert.deepEqual((await visiblePlayers(dual)).map(x=>x.team_id).sort(),
+  [fixture.teams.boys,fixture.teams.girls].sort());
+console.log("PASS: later re-assignment restores the coach's girls access without a new login");
 
 console.log("ALL multi-team real Supabase Auth and Next.js HTTP integration checks PASSED.");
