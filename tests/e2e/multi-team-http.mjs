@@ -159,4 +159,10 @@ invalid=await postSelection(dual,fixture.teams.girls);
 assert.equal(invalid.res.status,403);
 console.log("PASS: revoked membership blocks HTTP switching and PostgREST reads");
 
+// Restore the fictional girls assignment for the subsequent interactive browser QA.
+const {error:restoreError}=await admin.from("staff_team_access").upsert({
+  user_id:fixture.subjects.dual.id,team_id:fixture.teams.girls,role:"coach"
+},{onConflict:"user_id,team_id"});
+assert.ifError(restoreError);
+
 console.log("ALL multi-team real Supabase Auth and Next.js HTTP integration checks PASSED.");
