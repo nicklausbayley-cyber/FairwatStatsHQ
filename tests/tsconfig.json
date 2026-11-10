@@ -8,6 +8,6 @@
     "rootDir": "..",
     "outDir": "../.test-build"
   },
-  "include": ["coach-insights.test.ts", "lineup-performance.test.ts", "coach-setup.test.ts", "event-holes.test.ts"],
+  "include": ["coach-insights.test.ts", "lineup-performance.test.ts", "coach-setup.test.ts", "event-holes.test.ts", "team-selection.test.ts"],
   "exclude": ["../node_modules", "../.test-build"]
 }
