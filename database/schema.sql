@@ -86,14 +86,14 @@ create table if not exists public.courses (
 );
 
 -- Defined after courses to preserve first-time schema creation order.
-do $
+do $$
 begin
   if not exists (select 1 from pg_constraint where conrelid = 'public.events'::regclass and conname = 'events_course_id_fkey') then
     alter table public.events add constraint events_course_id_fkey
       foreign key (course_id) references public.courses(id) on delete set null;
   end if;
 end
-$;
+$$;
 
 create table if not exists public.course_holes (
   id uuid primary key default gen_random_uuid(),
