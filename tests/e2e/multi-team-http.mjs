@@ -17,16 +17,6 @@ assert.equal(new URL(api).hostname,"127.0.0.1", "Never use production Supabase")
 assert.ok(anon&&service);
 const admin=createClient(api,service,{auth:{persistSession:false,autoRefreshToken:false}});
 
-// Simulate platform-admin onboarding: assign the existing boys coach to girls
-// without altering their Auth account or home profile.
-const {error:assignError}=await admin.from("staff_team_access").upsert({
-  user_id:fixture.subjects.dual.id,
-  team_id:fixture.teams.girls,
-  role:"coach"
-},{onConflict:"user_id,team_id"});
-assert.ifError(assignError);
-console.log("PASS: linked existing coach to girls through a second membership");
-
 const checks=[];
 const verify=(name,fn)=>checks.push((async()=>{await fn();console.log("PASS:",name)})());
 function session() {
@@ -93,6 +83,96 @@ async function visiblePlayers(s) {
   assert.ifError(error);
   return data||[];
 }
+
+// Test the real PLATFORM ADMIN ONBOARDING endpoint for an existing staff member.
+// This is intentionally different from directly writing staff_team_access.
+const platform=await login("platform");
+const original=await admin.from("profiles").select("id,team_id,role,full_name,email")
+  .eq("id",fixture.subjects.dual.id).single();
+assert.ifError(original.error);
+assert.equal(original.data.team_id,fixture.teams.boys);
+assert.equal(original.data.role,"admin");
+const beforeAssignments=await admin.from("staff_team_access")
+  .select("team_id,role").eq("user_id",fixture.subjects.dual.id);
+assert.ifError(beforeAssignments.error);
+assert.deepEqual(beforeAssignments.data.map(x=>x.team_id),[fixture.teams.boys],
+  "Existing coach must begin with only the backfilled boys membership");
+const originalAuth=await admin.auth.admin.getUserById(fixture.subjects.dual.id);
+assert.ifError(originalAuth.error);
+assert.equal(originalAuth.data.user.email,fixture.subjects.dual.email);
+
+const payload={
+  action:"create-staff-login",
+  teamId:fixture.teams.girls,
+  fullName:"Demo Dual Coach",
+  email:fixture.subjects.dual.email,
+  role:"coach"
+};
+
+const notAdmin=await login("girlsOnly");
+let attempted=await request(notAdmin,"/api/onboarding",{
+  method:"POST",body:JSON.stringify(payload)
+});
+assert.equal(attempted.res.status,403,"Only a platform admin may assign an existing coach");
+console.log("PASS: team coach cannot use platform onboarding to grant access");
+
+let onboard=await request(platform,"/api/onboarding",{
+  method:"POST",body:JSON.stringify(payload)
+});
+let onboardReply=JSON.parse(onboard.text);
+assert.equal(onboard.res.status,200,JSON.stringify(onboardReply));
+assert.equal(onboardReply.success,true);
+assert.equal(onboardReply.userId,fixture.subjects.dual.id,
+  "Adding a second team must reuse the original Auth user");
+
+const after=await admin.from("profiles").select("id,team_id,role,full_name,email")
+  .eq("id",fixture.subjects.dual.id).single();
+assert.ifError(after.error);
+assert.deepEqual(after.data,original.data,
+  "Adding girls access must not overwrite original boys profile");
+const memberships=await admin.from("staff_team_access")
+  .select("team_id,role").eq("user_id",fixture.subjects.dual.id);
+assert.ifError(memberships.error);
+const expectedAccess=[
+  {team_id:fixture.teams.boys,role:"admin"},
+  {team_id:fixture.teams.girls,role:"coach"}
+].sort((a,b)=>a.team_id.localeCompare(b.team_id));
+assert.deepEqual(memberships.data.sort((a,b)=>a.team_id.localeCompare(b.team_id)),
+  expectedAccess);
+console.log("PASS: platform onboarding added girls as coach, retained boys as admin and original Auth/profile");
+
+onboard=await request(platform,"/api/onboarding",{
+  method:"POST",body:JSON.stringify(payload)
+});
+onboardReply=JSON.parse(onboard.text);
+assert.equal(onboard.res.status,200,JSON.stringify(onboardReply));
+assert.equal(onboardReply.userId,fixture.subjects.dual.id);
+const repeat=await admin.from("staff_team_access").select("team_id")
+  .eq("user_id",fixture.subjects.dual.id);
+assert.ifError(repeat.error);
+assert.equal(repeat.data.length,2,
+  "Repeating the same onboarding request must not duplicate memberships");
+
+const accountsResponse=await request(platform,"/api/onboarding");
+assert.equal(accountsResponse.res.status,200,accountsResponse.text.slice(0,500));
+const accountList=JSON.parse(accountsResponse.text);
+assert.equal(accountList.success,true);
+const assigned=(accountList.accounts||[]).filter(x=>x.profileId===fixture.subjects.dual.id);
+assert.equal(assigned.length,2,
+  "Onboarding account list must show an existing coach on both teams");
+assert.deepEqual(assigned.map(x=>[x.teamId,x.role]).sort(),
+  [[fixture.teams.boys,"admin"],[fixture.teams.girls,"coach"]].sort());
+
+const conflict=await request(platform,"/api/onboarding",{
+  method:"POST",body:JSON.stringify({...payload,email:fixture.subjects.boysPlayer.email})
+});
+assert.equal(conflict.res.status,409,"An existing player must never become a coach automatically");
+const playerProfile=await admin.from("profiles").select("team_id,role")
+  .eq("id",fixture.subjects.boysPlayer.id).single();
+assert.ifError(playerProfile.error);
+assert.equal(playerProfile.data.team_id,fixture.teams.boys);
+assert.equal(playerProfile.data.role,"player");
+console.log("PASS: onboarding is idempotent, lists both assignments, and refuses player-to-coach takeover");
 
 const dual=await login("dual");
 let roster=await page(dual,"/roster");
