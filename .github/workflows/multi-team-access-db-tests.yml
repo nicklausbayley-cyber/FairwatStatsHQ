@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'database/migrations/add-staff-team-access.sql'
+      - 'database/migrations/20261110_revoke_staff_team_access.sql'
       - 'database/tests/staff-team-access/**'
       - '.github/workflows/multi-team-access-db-tests.yml'
   workflow_dispatch:
@@ -46,8 +47,20 @@ jobs:
         run: |
           docker exec -i "$DATABASE_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d fshq_access_tests             < database/migrations/add-staff-team-access.sql
 
+      - name: Apply revocation audit and atomic RPC migration
+        env:
+          DATABASE_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$DATABASE_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d fshq_access_tests < database/migrations/20261110_revoke_staff_team_access.sql
+
       - name: Prove authorized reads, writes, revocations, and player isolation
         env:
           DATABASE_CONTAINER: ${{ job.services.postgres.id }}
         run: |
           docker exec -i "$DATABASE_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d fshq_access_tests             < database/tests/staff-team-access/assertions.sql
+
+      - name: Prove coach team removal, last-team guard and audit
+        env:
+          DATABASE_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$DATABASE_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d fshq_access_tests < database/tests/staff-team-access/revocation.sql
