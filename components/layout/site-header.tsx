@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import type { TeamBranding } from "../../lib/team/branding";
 import { createClient } from "../../lib/supabase/client";
 import type { UserRole } from "../../lib/auth/get-current-team";
@@ -11,6 +12,8 @@ type HeaderUser = {
   name: string;
   email: string;
   role: UserRole | "platform";
+  selectedTeamId?: string | null;
+  teamChoices?: Array<{ id: string; name: string; role: "admin" | "coach" }>;
   playerProfileHref: string | null;
   isPlatformAdmin: boolean;
   isSupportAdmin: boolean;
@@ -98,12 +101,38 @@ export function SiteHeader({
   const pathname = usePathname();
   const router = useRouter();
   const navItems = getNavItems(user);
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
   const primaryColor = branding?.primaryColor ?? fallbackPrimaryColor;
   const secondaryColor = branding?.secondaryColor ?? fallbackSecondaryColor;
   const displayName = branding?.name ?? "Fairway Stats HQ";
   const subtitle = branding
     ? [branding.schoolName, branding.mascot].filter(Boolean).join(" | ")
     : "High school golf performance tracking";
+
+  async function handleTeamSwitch(teamId: string) {
+    if (!user || teamId === user.selectedTeamId || isSwitching) return;
+    setIsSwitching(true);
+    setSwitchError(null);
+    try {
+      const response = await fetch("/api/team-selection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ teamId })
+      });
+      const result = (await response.json()) as { success?: boolean; message?: string };
+      if (!response.ok || !result.success) {
+        throw new Error(result.message ?? "Could not change teams.");
+      }
+      router.push("/dashboard");
+      router.refresh();
+    } catch (error) {
+      setSwitchError(error instanceof Error ? error.message : "Could not change teams.");
+    } finally {
+      setIsSwitching(false);
+    }
+  }
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -201,6 +230,29 @@ export function SiteHeader({
           )}
           {user ? (
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              {user.role !== "player" && (user.teamChoices?.length ?? 0) > 1 ? (
+                <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
+                  <span className="font-semibold text-slate-700">Team</span>
+                  <select
+                    aria-label="Active golf team"
+                    className="max-w-44 rounded border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600"
+                    value={user.selectedTeamId ?? ""}
+                    disabled={isSwitching}
+                    onChange={(event) => void handleTeamSwitch(event.target.value)}
+                  >
+                    {user.teamChoices?.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {switchError ? (
+                <span role="alert" className="text-xs font-medium text-red-700">
+                  {switchError}
+                </span>
+              ) : null}
               <div className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
                 <p className="truncate font-semibold text-slate-950">
                   {user.name || user.email}
