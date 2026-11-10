@@ -1,0 +1,106 @@
+name: Multi-Team Coach Access — Real Supabase Auth E2E
+
+on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
+      - 'database/schema.sql'
+      - 'database/migrations/add-staff-team-access.sql'
+      - 'tests/e2e/multi-team-*.mjs'
+      - '.github/workflows/multi-team-real-auth-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-auth-switching:
+    name: Local Supabase Auth + Next.js HTTP
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_CLI: supabase@2.81.3
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Check out untrusted-free candidate branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Install locked application dependencies
+        run: |
+          npm install -g pnpm@10.28.0
+          pnpm install --frozen-lockfile
+
+      - name: Discover CLI commands and create local Supabase configuration
+        run: |
+          npx --yes "$SUPABASE_CLI" --version
+          npx --yes "$SUPABASE_CLI" start --help
+          npx --yes "$SUPABASE_CLI" init --yes
+
+      - name: Start isolated Supabase with real Auth and PostgREST
+        run: |
+          npx --yes "$SUPABASE_CLI" start --exclude studio,analytics,realtime,storage-api,imgproxy,edge-runtime,inbucket,vector,supavisor,pgmeta
+
+      - name: Capture disposable localhost credentials without logging values
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes "$SUPABASE_CLI" status -o env > "$RUNNER_TEMP/local-supabase-env"
+          set -a
+          source "$RUNNER_TEMP/local-supabase-env"
+          set +a
+          test -n "${API_URL:-}"
+          test -n "${ANON_KEY:-}"
+          test -n "${SERVICE_ROLE_KEY:-}"
+          test -n "${DB_URL:-}"
+          [[ "$API_URL" == http://127.0.0.1:* ]]
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "CI_LOCAL_DB_URL=$DB_URL"
+          } >> "$GITHUB_ENV"
+
+      - name: Create application schema and local-only test grants
+        run: |
+          psql "$CI_LOCAL_DB_URL" -v ON_ERROR_STOP=1 -f database/schema.sql
+          psql "$CI_LOCAL_DB_URL" -v ON_ERROR_STOP=1 -c 'GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;'
+
+      - name: Create real local Auth users and fictional boys/girls teams
+        run: node tests/e2e/multi-team-seed.mjs
+
+      - name: Apply proposed membership/RLS migration locally
+        run: psql "$CI_LOCAL_DB_URL" -v ON_ERROR_STOP=1 -f database/migrations/add-staff-team-access.sql
+
+      - name: Start Next.js against localhost Supabase
+        shell: bash
+        run: |
+          pnpm exec next dev --hostname 127.0.0.1 -p 3000 > "$RUNNER_TEMP/fshq-next.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/fshq-next.pid"
+          for i in {1..60}; do
+            status="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/login || true)"
+            if [[ "$status" != "000" ]]; then exit 0; fi
+            sleep 2
+          done
+          tail -n 80 "$RUNNER_TEMP/fshq-next.log"
+          exit 1
+
+      - name: Verify real login, boys/girls switching, isolation, revocation
+        run: node tests/e2e/multi-team-http.mjs
+
+      - name: Print app error details only if test fails
+        if: failure()
+        run: |
+          if [ -f "$RUNNER_TEMP/fshq-next.log" ]; then tail -n 130 "$RUNNER_TEMP/fshq-next.log"; fi
+
+      - name: Tear down disposable local stack
+        if: always()
+        run: npx --yes "$SUPABASE_CLI" stop || true
