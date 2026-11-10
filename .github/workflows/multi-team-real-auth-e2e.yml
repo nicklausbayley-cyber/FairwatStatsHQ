@@ -8,6 +8,7 @@ on:
       - 'lib/**'
       - 'database/schema.sql'
       - 'database/migrations/add-staff-team-access.sql'
+      - 'database/migrations/20261110_revoke_staff_team_access.sql'
       - 'tests/e2e/multi-team-*.mjs'
       - '.github/workflows/multi-team-real-auth-e2e.yml'
   workflow_dispatch:
@@ -80,6 +81,9 @@ jobs:
 
       - name: Apply proposed membership/RLS migration locally
         run: psql "$CI_LOCAL_DB_URL" -v ON_ERROR_STOP=1 -f database/migrations/add-staff-team-access.sql
+
+      - name: Apply coach access revocation RPC locally
+        run: psql "$CI_LOCAL_DB_URL" -v ON_ERROR_STOP=1 -f database/migrations/20261110_revoke_staff_team_access.sql
 
       - name: Start Next.js against localhost Supabase
         shell: bash
