@@ -75,6 +75,19 @@ for(const player of players) {
     played_on:"2026-04-20",holes:9,score:player.first_name==="Bradley"?39:player.first_name==="Gemma"?42:45
   }),"Insert local round");
 }
-const result={password,teams,subjects: Object.fromEntries(subjects.map(s=>[s.key,{id:s.id,email:s.email,role:s.role}])),players: Object.fromEntries(players.map(p=>[p.first_name,p.id]))};
+// Platform-owner identity is independent of a team's profile. The address is a
+// fixture-only .invalid address configured as PLATFORM_ADMIN_EMAILS in CI.
+const platformEmail="ci-platform-owner@example.invalid";
+const {user: platformUser}=await required(admin.auth.admin.createUser({
+  email:platformEmail,
+  password,
+  email_confirm:true
+}),"Create local platform owner");
+assert.ok(platformUser?.id);
+
+const result={password,teams,subjects: {
+  ...Object.fromEntries(subjects.map(s=>[s.key,{id:s.id,email:s.email,role:s.role}])),
+  platform:{id:platformUser.id,email:platformEmail}
+},players: Object.fromEntries(players.map(p=>[p.first_name,p.id]))};
 writeFileSync("tests/e2e/.local-multi-team-fixture.json",JSON.stringify(result),{mode:0o600});
-console.log("Prepared four real local Supabase Auth users, three fictional teams, and isolated sample rounds.");
+console.log("Prepared five real local Auth users including a platform owner, three fictional teams, and isolated sample rounds.");
