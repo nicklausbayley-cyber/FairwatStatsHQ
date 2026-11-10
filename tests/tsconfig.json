@@ -14,7 +14,8 @@
     "coach-setup.test.ts",
     "event-holes.test.ts",
     "team-selection.test.ts",
-    "staff-team-access-sql.test.ts"
+    "staff-team-access-sql.test.ts",
+    "same-origin.test.ts"
   ],
   "exclude": [
     "../node_modules",
