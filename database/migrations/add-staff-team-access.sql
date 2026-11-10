@@ -29,8 +29,12 @@ on public.staff_team_access for select to authenticated
 using ((select auth.uid()) = user_id);
 
 -- Only privileged platform-onboarding/server routes can grant or remove membership.
-revoke all on public.staff_team_access from anon, authenticated;
+-- New public tables are not implicitly exposed to service_role on every
+-- Supabase project (data API default privileges changed in 2026).
+-- Only authenticated SELECT is exposed; service_role performs controlled writes.
+revoke all on public.staff_team_access from public, anon, authenticated;
 grant select on public.staff_team_access to authenticated;
+grant select, insert, update, delete on public.staff_team_access to service_role;
 
 -- Existing RLS policies call these helpers. Keep the function signatures stable,
 -- and derive all rights from the authenticated caller (never a user-supplied UID).
@@ -42,7 +46,10 @@ as $$
   select (select auth.uid()) is not null and (
     exists (
       select 1 from public.staff_team_access sta
-      where sta.user_id = (select auth.uid()) and sta.team_id = target_team_id
+      join public.profiles p on p.id = sta.user_id
+      where sta.user_id = (select auth.uid())
+        and sta.team_id = target_team_id
+        and p.role in ('admin', 'coach')
     )
     or exists (
       select 1 from public.profiles p
@@ -58,9 +65,11 @@ returns boolean language sql stable security definer set search_path = ''
 as $$
   select (select auth.uid()) is not null and exists (
     select 1 from public.staff_team_access sta
+    join public.profiles p on p.id = sta.user_id
     where sta.user_id = (select auth.uid())
       and sta.team_id = target_team_id
       and sta.role in ('coach', 'admin')
+      and p.role in ('coach', 'admin')
   );
 $$;
 
