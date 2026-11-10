@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isSameOriginRequest } from "../../../lib/auth/same-origin";
 import {
   getCurrentTeam,
   isTeamStaff,
@@ -13,8 +14,7 @@ function respond(message: string, status: number) {
 
 export async function POST(request: Request) {
   // Team selection changes an HTTP-only cookie. Block cross-origin requests.
-  const origin = request.headers.get("origin");
-  if (!origin || origin !== new URL(request.url).origin) {
+  if (!isSameOriginRequest(request)) {
     return respond("Invalid request origin.", 403);
   }
 
