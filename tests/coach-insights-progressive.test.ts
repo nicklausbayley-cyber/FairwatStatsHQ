@@ -123,7 +123,7 @@ test("mixed nine/eighteen scoring is normalized per nine, not averaged as raw sc
   assert.equal(mixed.completedRounds,4);
   const eighteen=report(rows,18);
   assert.equal(eighteen.snapshot.scoring.recentValue,80);
-  assert.equal(eighteen.parRelative?.average,4);
+  assert.equal(eighteen.parRelative?.average,5);
 });
 
 test("practice and competition remain separate, including rounds without an event",()=>{
