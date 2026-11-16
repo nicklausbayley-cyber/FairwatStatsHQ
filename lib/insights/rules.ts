@@ -34,7 +34,7 @@ export const METRIC_RULES: Record<TrendMetric, {
   scoring: {
     label: "Scoring average",
     lowerIsBetter: true,
-    threshold: (holes) => holes === 9 ? 1 : 2,
+    threshold: (holes) => holes === 18 ? 2 : 1,
     unit: "strokes",
     positiveTitle: "Scoring is improving",
     negativeTitle: "Scoring needs attention",
@@ -64,7 +64,7 @@ export const METRIC_RULES: Record<TrendMetric, {
   putting: {
     label: "Putts per round",
     lowerIsBetter: true,
-    threshold: (holes) => holes === 9 ? 0.75 : 1.5,
+    threshold: (holes) => holes === 18 ? 1.5 : 0.75,
     unit: "putts",
     positiveTitle: "Fewer putts per round",
     negativeTitle: "Putting needs attention",
