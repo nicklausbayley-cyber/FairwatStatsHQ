@@ -4,7 +4,7 @@ import {
   Badge, EmptyState, PageHeader, appPanelClassName, cn, secondaryButtonClassName
 } from "../ui/primitives";
 import { METRICS, METRIC_RULES, formatMetricValue } from "../../lib/insights/rules";
-import type { CoachInsight, CoachInsightsReport, MetricComparison } from "../../lib/insights/types";
+import type { CoachInsight, CoachInsightsReport, InsightFormat, MetricComparison } from "../../lib/insights/types";
 
 function formatDate(date: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
@@ -18,35 +18,57 @@ function dateRange(dates: string[]) {
     : `${formatDate(sorted[0])} – ${formatDate(sorted[sorted.length - 1])}`;
 }
 
-function SnapshotCard({ metric, holes }: { metric: MetricComparison; holes: 9 | 18 }) {
+function metricTitle(metric: MetricComparison, holes: InsightFormat) {
+  if (holes === "all" && metric.category === "scoring") return "Scoring average / 9 holes";
+  if (holes === "all" && metric.category === "putting") return "Putts / 9 holes";
+  return METRIC_RULES[metric.category].label;
+}
+
+function SnapshotCard({ metric, holes }: { metric: MetricComparison; holes: InsightFormat }) {
   const rule = METRIC_RULES[metric.category];
   const notable = metric.ready && metric.delta !== null && Math.abs(metric.delta) + 1e-9 >= metric.threshold;
   const positive = notable && (rule.lowerIsBetter ? metric.delta! < 0 : metric.delta! > 0);
   const unit = metric.unit === "percentage_points" ? "pp"
-    : metric.unit === "per_18" ? "per 18" : metric.unit;
+    : metric.unit === "per_18" ? "per 18" : holes === "all" && (metric.category === "scoring" || metric.category === "putting")
+      ? "per 9" : metric.unit;
+  const confidence = metric.confidence === "early" ? "Early signal"
+    : metric.confidence === "preliminary" ? "Preliminary" : "Established";
   return (
     <div className={cn(appPanelClassName, "p-5 print:break-inside-avoid print:p-3 print:shadow-none")}>
-      <p className="text-sm font-semibold text-slate-500">{rule.label}</p>
+      <p className="text-sm font-semibold text-slate-500">{metricTitle(metric, holes)}</p>
       <p className="mt-3 text-3xl font-bold tracking-tight text-slate-950">
         {metric.recentValue === null ? "—" : formatMetricValue(metric.category, metric.recentValue)}
       </p>
       {metric.ready && metric.delta !== null ? (
         <p className={cn("mt-2 text-sm font-semibold", notable ? positive ? "text-green-800" : "text-amber-800" : "text-slate-600")}>
-          {notable ? positive ? "Improving · " : "Attention · " : "Within threshold · "}
-          {metric.delta > 0 ? "+" : ""}{metric.delta.toFixed(1)} {unit}
+          {confidence} · {notable ? positive ? "lower/higher: favorable" : "needs review" : "within threshold"} ·
+          {" "}{metric.delta > 0 ? "+" : ""}{metric.delta.toFixed(1)} {unit}
         </p>
-      ) : <p className="mt-2 text-sm text-slate-500">{metric.recentValue === null ? "Stat not recorded" : "Building the baseline"}</p>}
+      ) : (
+        <p className="mt-2 text-sm text-slate-500">
+          {metric.recentValue === null ? "Stat not recorded" : "Recorded baseline · no comparable trend yet"}
+        </p>
+      )}
       <p className="mt-2 text-xs leading-5 text-slate-500">
-        {metric.evidence.recentRoundIds.length} recent {holes}-hole rounds
-        {metric.ready ? ` · ${metric.evidence.playerCount} matched player${metric.evidence.playerCount === 1 ? "" : "s"}` : ""}
+        {metric.evidence.recentRoundIds.length} recent {holes === "all" ? "mixed-format" : `${holes}-hole`} rounds
+        {metric.ready ? ` · ${metric.evidence.playerCount} comparable player${metric.evidence.playerCount === 1 ? "" : "s"}` : ""}
       </p>
+      {metric.lineupChanged && metric.ready ? (
+        <p className="mt-2 text-xs text-amber-800">Lineup changed · only players represented in both periods are compared.</p>
+      ) : null}
+      {!metric.ready && metric.reason && metric.recentValue !== null ? (
+        <p className="mt-2 text-xs leading-5 text-slate-500">{metric.reason}</p>
+      ) : null}
     </div>
   );
 }
 
 function InsightCard({ insight }: { insight: CoachInsight }) {
   const tone = insight.direction === "positive" ? "green" : insight.direction === "negative" ? "amber" : "slate";
-  const label = insight.direction === "positive" ? "Improving" : insight.direction === "negative" ? "Attention" : "Contribution";
+  const label = insight.category === "counting_score" ? "Low-four estimate" :
+    insight.confidence === "early" ? "Early indication" :
+    insight.confidence === "preliminary" ? "Preliminary trend" :
+    insight.direction === "positive" ? "Improving" : insight.direction === "negative" ? "Attention" : "Contribution";
   return (
     <article className={cn(appPanelClassName, "p-5 print:break-inside-avoid print:p-3 print:shadow-none")}>
       <Badge tone={tone}>{label}</Badge>
