@@ -41,7 +41,7 @@ function SnapshotCard({ metric, holes }: { metric: MetricComparison; holes: Insi
       </p>
       {metric.ready && metric.delta !== null ? (
         <p className={cn("mt-2 text-sm font-semibold", notable ? positive ? "text-green-800" : "text-amber-800" : "text-slate-600")}>
-          {confidence} · {notable ? positive ? "lower/higher: favorable" : "needs review" : "within threshold"} ·
+          {confidence} · {notable ? positive ? "favorable change" : "needs review" : "within threshold"} ·
           {" "}{metric.delta > 0 ? "+" : ""}{metric.delta.toFixed(1)} {unit}
         </p>
       ) : (
