@@ -185,7 +185,7 @@ export function CoachInsightsView({ report, teamName, seasonName }: {
           <p className="mt-2 text-2xl font-bold text-slate-950">{report.completedRounds}</p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Match rounds recorded</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Competition rounds</p>
           <p className="mt-2 text-2xl font-bold text-slate-950">{report.sourceCounts.competition}</p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4">
