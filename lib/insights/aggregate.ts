@@ -178,7 +178,14 @@ export function compareMetric(outings: Outing[], category: TrendMetric, format: 
   const baselineIds = new Set(baselineAll.map((round) => round.playerId));
   const matched = new Set([...recentIds].filter((id) => baselineIds.has(id)));
   const lineupChanged = recentIds.size !== baselineIds.size ||
-    [...recentIds].some((id) => !baselineIds.has(id));
+    [...recentIds].some((id) => !baselineIds.has(id)) ||
+    [...recent, ...baseline].some((outing) => {
+      const activeIds = new Set(outing.rounds.filter((round) =>
+        valueFor(round, category, format) !== null
+      ).map((round) => round.playerId));
+      return activeIds.size !== recentIds.size ||
+        [...activeIds].some((id) => !recentIds.has(id));
+    });
   const everyOutingCovered = [...recent, ...baseline].every((outing) =>
     outing.rounds.some((round) =>
       matched.has(round.playerId) && valueFor(round, category, format) !== null
