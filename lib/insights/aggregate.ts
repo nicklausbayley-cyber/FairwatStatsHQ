@@ -147,6 +147,15 @@ export function aggregateMetric(rounds: NormalizedRound[], category: TrendMetric
     }), { hit: 0, possible: 0 });
     return totals.possible > 0 ? totals.hit / totals.possible * 100 : null;
   }
+  // Mixed 9/18 development rates are per-nine or per-18 equivalents.
+  // Weight an 18-hole round twice as heavily as nine holes so every hole
+  // contributes equally. Single-format historical averages remain unchanged.
+  if (format === "all") {
+    const equivalents = valid.reduce((sum, round) => sum + round.holes / 9, 0);
+    return valid.reduce((sum, round) =>
+      sum + (valueFor(round, category, format) ?? 0) * round.holes / 9, 0
+    ) / equivalents;
+  }
   return valid.reduce((sum, round) => sum + (valueFor(round, category, format) ?? 0), 0) / valid.length;
 }
 
