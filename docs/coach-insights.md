@@ -1,128 +1,110 @@
-# Coach Insights v1
+# Coach Insights — Progressive Early-Season Analytics
 
-Staff can open **Coach Insights** at `/coach-insights`. It uses the current
-team's active season and defaults to nine-hole rounds. The format links select
-nine or eighteen holes. **Print Report** uses the browser's print/PDF workflow.
-No database migration, external AI service, or new production dependency is
-required. Automated emails and self-service onboarding are later work.
+Coaches open **Coach Insights** at `/coach-insights`. It is limited to the signed-in
+coach/admin's currently selected team and **active season**, using existing Supabase
+RLS and no service-role reads. The default view is **All 9/18** and **All rounds**;
+there are also separate 9-hole/18-hole and Competition/Practice filters.
 
-## Calculation contract
+This release does not change the underlying stored scores, reports, or schema.
 
-- A team outing is an event plus its played date, or the played date for
-  unattached rounds. Multi-day events therefore provide separate outings.
-- A player has one round per outing: the latest submission by `created_at`,
-  with round ID as a stable tie-break. Multiple same-day rounds at the same
-  event cannot be distinguished by the current schema.
-- The recent window is the latest three completed outings; the baseline is
-  the previous three. Windows are chosen before checking metric coverage.
-  Missing metrics do not backfill the window with older rounds.
-- Each team metric includes only players with valid values in all six outings.
-  This holds participation constant. The snapshot uses the matched cohort when
-  a comparison exists; otherwise it shows recorded recent values without a delta.
-  Different metrics may have different cohorts, displayed on each card.
-- Player trends use that player's own last six completed outings, in the
-  selected format. A single outing with several players cannot satisfy a
-  team's six-outing requirement.
-- Scoring and putt totals compare the same round format. FIR/GIR use pooled
-  hit/opportunity totals. Percentages are displayed as percentages; their
-  changes and thresholds are **percentage points**, not relative percentages.
-- Three-putts and penalties are normalized to eighteen-hole equivalents before
-  averaging. A nine-hole total of one becomes two per eighteen holes.
-- `null`, nonfinite values, and invalid totals are excluded from that metric.
-  Actual recorded zeroes are retained. Manual GIR must cover the scheduled
-  number of holes; FIR opportunities must be positive and at most that number.
-- Summary-only submissions have no draft/completion status in the existing
-  schema and are treated as completed scored rounds. When hole rows exist,
-  all scheduled holes must be present, unique, contiguous, and sum to the round
-  score. Optional hole-level stats must be present on every relevant hole to
-  qualify. Par threes do not count as FIR opportunities. Partial metric totals
-  cannot override that coverage check.
+## Coach-facing data progression
 
-| Metric | Nine holes | Eighteen holes | Favorable direction |
-| --- | ---: | ---: | --- |
-| Score | 1.0 stroke | 2.0 strokes | Lower |
-| GIR | 8 percentage points | 8 percentage points | Higher |
-| FIR | 10 percentage points | 10 percentage points | Higher |
-| Putts | 0.75 putts | 1.5 putts | Lower |
-| Three-putts | 0.75 per 18 equivalent | 0.75 per 18 | Lower |
-| Penalties | 0.75 per 18 equivalent | 0.75 per 18 | Lower |
+| Team outings in selected view | What appears | Comparison |
+| ---: | --- | --- |
+| 0 | Empty-state prompt | No metrics |
+| 1 | Recorded averages and supported early practice observations | No trend claim |
+| 2–3 | Early indications, clearly labeled as a small sample | Latest 1 outing vs preceding 1 |
+| 4–5 | Preliminary trends | Latest 2 vs previous 2 |
+| 6+ | Established comparisons | Latest 3 vs previous 3 |
 
-Each generated insight exposes recent and baseline values, its delta, threshold
-severity (`abs(delta) / threshold`), sample size, player count, dates, and the
-exact contributing round IDs. Two positive and two negative team cards are
-displayed. The watchlist contains up to four unique players, choosing each
-player's strongest supported observation.
+An **outing** means an event on one played date, or the played date of unattached
+rounds. Six players entering one match creates **one team outing**, not six.
+Individual player comparisons use the player's own outings in the selected view,
+so a developing player can have a trend even before six separate team matches.
 
-## Practice priorities and summary
+These labels describe **data volume**, not a statistical confidence interval.
+Threshold sizes remain explicit, and performance changes are described rather
+than presented as proven effects of a practice plan.
 
-Negative GIR, FIR, putting, and penalty signals map to approach play, tee-shot
-accuracy, putting, and course management. Three-putts and putts share one
-practice category; the stronger signal determines its severity. A supported
-team signal takes precedence within a category. If none exists, a player's
-signal may appear explicitly labeled **Player focus**. The three highest
-category severities are shown.
+## Calculation contract and data quality
 
-The summary states supported changes without claiming causation. Advice does
-not infer approach distances, miss direction, or strokes lost from stats that
-do not measure them. Course difficulty, conditions, and opponent strength are
-not adjusted. Coaches should review those contexts before acting.
+- Each score must be a validated, completed 9- or 18-hole round. Summary-only
+  submissions lack a draft flag and are considered complete.
+- When hole records exist, all scheduled holes must be present, contiguous and
+  sum to the submitted round score. Hole-derived optional stats require complete
+  relevant-hole coverage. Invalid totals and partial metrics do not become zero.
+- One submission per player/outing: use the latest `created_at`, with round ID
+  as a stable tie-break. Multiple rounds in one event on the same date cannot
+  be distinguished by the current schema.
+- Comparison windows are selected **first**, and missing data cannot backfill
+  them with older records. Each metric needs a valid value from comparable
+  players in every selected outing to produce a supported trend.
+- A player is **comparable** for a metric when they have a valid observation
+  in both the recent and earlier windows. They do **not** need to appear in
+  every outing. Team metric values are calculated from that overlapping group
+  when a supported comparison exists; otherwise they display available recent
+  values only (no false improvement claim). Lineup changes are shown explicitly.
+- GIR/FIR pool hits and valid opportunities across recorded rounds; a recorded
+  zero is retained. Three-putts and penalties are normalized to 18-hole
+  equivalents. Par-three holes do not count as FIR opportunities.
+- Practice priorities after a single outing are conservative, **evidence-first
+  review prompts** triggered by actually recorded three-putts or penalties,
+  not claims of worsening performance. Once comparative trends are available,
+  supported unfavorable changes take precedence in the priority ranking.
+- Team snapshots, player trends, and watchlists are never generated for a
+  metric with no usable evidence.
 
-## Low-four contribution estimates
+## Nine holes, eighteen holes, and combined development
 
-Match, invitational, and tournament outings are eligible when at least four
-unique players have complete scores in one format. Practice and qualifier
-outings, mixed formats, invalid participants, and ties at the fourth-score
-boundary are skipped. The last six eligible team competition outings provide
-the denominator, including outings a player missed. A player needs at least
-three appearances and a low-four score in at least 80% of those team outings
-to receive an observation.
+- **9-hole** and **18-hole** views retain separate original-format scoring
+  and putting averages and format-specific thresholds.
+- **All 9/18** does **not** average raw 9-hole scores directly with 18-hole
+  scores. Gross score and putts are normalized per nine holes, e.g., 84 over
+  18 becomes a gross nine-hole equivalent of 42. FIR/GIR remain percentages
+  from pooled opportunities. Penalties and three-putts are per 18 equivalent.
+- If the submitted round `par` or complete hole-level par is present, an
+  independent **relative-to-par per nine** descriptive number is displayed.
+  Missing par is excluded rather than assumed; par-relative and gross scores
+  are never averaged together.
+- These are **not** course-rating, slope, weather, or handicap adjustments.
+  Coaches should consider conditions when interpreting an observed change.
 
-These are estimates from the entered scores, not official counted-score
-records: there is no varsity/JV lineup or tie-break metadata in the database.
-`counts_toward_lineup` controls the existing last-five qualification ranking;
-it does not establish whether a competition score counted and is not used for
-this estimate. Existing event reports are unchanged.
+## Practice and competition sources
 
-## Authorization and data loading
+- **All rounds** includes all valid scored rounds in the selected season/format.
+- **Competition** is match, invitational, and tournament events only.
+- **Practice** is explicit practice events plus rounds with no event attached.
+  These unattached rounds are labeled **practice/unattached**, since a
+  finer-grained source flag is not present in the schema.
+- Qualifiers and other unrecognized events remain in All but are not silently
+  called official competitions or practices.
+- Recorded competitions and practices are separately countable and filterable.
 
-Both the page guard and loader require a coach/admin role. Queries use the
-authenticated Supabase client with existing RLS, explicit team filters, and
-active-season filters on rounds and events. There is no service-role access
-and no fallback to combining seasons when an active season is missing.
+## Low-four contribution
 
-The loader pages each collection in batches of 500 and fetches hole rows in
-round-ID batches of 100. A failure on any page fails the report, rather than
-producing a partial baseline. Score create/edit/delete, roster/event updates,
-and season changes revalidate the Coach Insights page.
+The existing low-four estimate remains single-format. It requires competition
+outings (match, invitational, tournament) with at least four eligible golfers
+and a valid fourth-score boundary. Practices, qualifiers, mixed-format
+competition outings, incomplete cards, and unresolved fourth-place ties are
+excluded. The latest six eligible competition outings are used. A player needs
+at least three appearances and a low-four result in at least 80% of those team
+outings to receive the estimate. It is not an official scorecard counting flag
+or varsity/JV lineup decision, and it does not appear in the mixed format view.
 
-## Validation
+## Verification
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm test:insights
-pnpm lint
 pnpm build
 ```
 
-The tests use Node's built-in test runner after compiling TypeScript into the
-ignored `.test-build` directory. They cover fixed windows, roster changes,
-format separation, missing/zero/partial stats, weighted percentages, duplicates,
-counting eligibility, severity ranking, pagination, staff access, team/season
-boundaries, and rendered-page content. A real production build requires the
-app's existing Supabase environment variables.
+The progressive suite exercises day-one metrics, 2/4/6 outing windows,
+changing players, unmatched-roster suppression, 9/18 score normalization,
+known par, practice/competition separation, missing stats, and rendered UI.
+Existing tests continue covering complete hole cards, duplicate submissions,
+low-four eligibility, auth boundaries, pagination, and team/season isolation.
 
-## Completing the Riverside demo baseline
-
-The existing Riverside coach demo contains five outings per format. Run
-`database/demo/add-coach-insights-validation-outings.sql` in the Supabase SQL
-Editor to append one clearly labeled synthetic practice outing per format,
-then refresh the preview. It checks the exact demo team ID, name, school,
-contact address, coach profile, and active season before changing any data.
-The operation is transactional and reruns skip the two existing validation
-events. It never replaces existing events, players, rounds, or hole scores.
-
-The new summary rounds include complete stats with deliberate changes for
-testing positive cards and practice priorities. They are labeled synthetic in
-event names and round notes, marked ineligible for lineup qualification, and
-excluded from low-four competition estimates because the events are practice.
-This script is optional demo data, not a database migration or customer data.
+No production data migration is needed. Feature implementation should be
+validated on a preview before release. `Coach Insights` cannot infer
+causality or assign a practice priority without a recorded supporting metric.
