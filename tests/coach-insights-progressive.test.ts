@@ -182,9 +182,9 @@ test("mixed-format per-nine/per-18 means weight the observed holes, not the numb
     round(2,{holes:18,score:80,par:72,putts:30,three_putts:1,penalties:0,gir_possible:18})
   ];
   const normalized=normalizeRounds(rows,[]).rounds;
-  assert.ok(Math.abs(aggregateMetric(normalized,"scoring","all") - 125/3) < 1e-9);
-  assert.ok(Math.abs(aggregateMetric(normalized,"putting","all") - 48/3) < 1e-9);
-  assert.ok(Math.abs(aggregateMetric(normalized,"penalties","all") - 2/3) < 1e-9);
+  assert.ok(Math.abs(aggregateMetric(normalized,"scoring","all")! - 125/3) < 1e-9);
+  assert.ok(Math.abs(aggregateMetric(normalized,"putting","all")! - 48/3) < 1e-9);
+  assert.ok(Math.abs(aggregateMetric(normalized,"penalties","all")! - 2/3) < 1e-9);
   assert.ok(Math.abs(report(rows,"all").parRelative!.average - 17/3) < 1e-9);
   assert.equal(METRIC_RULES.scoring.threshold("all"),1);
   assert.equal(METRIC_RULES.putting.threshold("all"),0.75);
