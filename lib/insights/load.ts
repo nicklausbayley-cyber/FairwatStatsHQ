@@ -2,7 +2,7 @@ import { isTeamStaff, type CurrentTeamContext } from "../auth/get-current-team";
 import { getActiveSeasonForTeam, type ActiveSeason } from "../seasons/active-season";
 import { buildCoachInsights } from "./engine";
 import type {
-  CoachInsightsReport, InsightEvent, InsightHoleRow, InsightPlayer, InsightRoundRow, RoundFormat
+  CoachInsightsReport, InsightEvent, InsightHoleRow, InsightPlayer, InsightRoundRow, InsightFormat, InsightSource
 } from "./types";
 
 const PAGE_SIZE = 500;
@@ -29,7 +29,7 @@ export type CoachInsightsState =
 /** Staff authorization, team boundaries, and active season are enforced here too,
  * so a future API/report consumer cannot accidentally bypass the page guard.
  */
-export async function loadCoachInsights(currentTeam: CurrentTeamContext, holes: RoundFormat): Promise<CoachInsightsState> {
+export async function loadCoachInsights(currentTeam: CurrentTeamContext, holes: InsightFormat, source: InsightSource = "all"): Promise<CoachInsightsState> {
   if (!isTeamStaff(currentTeam.role)) {
     return { status: "error", message: "Coach Insights is available to coaches and team admins." };
   }
@@ -40,7 +40,7 @@ export async function loadCoachInsights(currentTeam: CurrentTeamContext, holes: 
 
     const [rounds, players, events] = await Promise.all([
       readAllPages<InsightRoundRow>((start, end) => supabase.from("rounds")
-        .select("id, team_id, season_id, player_id, event_id, played_on, created_at, holes, score, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts")
+        .select("id, team_id, season_id, player_id, event_id, played_on, created_at, holes, score, par, putts, fairways_hit, fairways_possible, greens_in_regulation, gir_possible, penalties, three_putts")
         .eq("team_id", team.id).eq("season_id", season.id).order("id").range(start, end)),
       readAllPages<InsightPlayer>((start, end) => supabase.from("players")
         .select("id, first_name, last_name").eq("team_id", team.id).order("id").range(start, end)),
@@ -49,7 +49,7 @@ export async function loadCoachInsights(currentTeam: CurrentTeamContext, holes: 
     ]);
 
     const holeRows: InsightHoleRow[] = [];
-    const ids = rounds.filter((round) => round.holes === holes).map((round) => round.id);
+    const ids = rounds.filter((round) => holes === "all" || round.holes === holes).map((round) => round.id);
     for (let start = 0; start < ids.length; start += 100) {
       const batch = ids.slice(start, start + 100);
       holeRows.push(...await readAllPages<InsightHoleRow>((from, to) => supabase.from("round_holes")
@@ -59,7 +59,7 @@ export async function loadCoachInsights(currentTeam: CurrentTeamContext, holes: 
 
     // Retain both formats for counting-score eligibility checks, while analyzing
     // hole completeness for the chosen format only.
-    return { status: "ready", season, report: buildCoachInsights({ rounds, players, events, holeRows, holes }) };
+    return { status: "ready", season, report: buildCoachInsights({ rounds, players, events, holeRows, holes, source }) };
   } catch {
     return { status: "error", message: "Could not load Coach Insights. Please try again." };
   }
