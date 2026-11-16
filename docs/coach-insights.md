@@ -60,10 +60,13 @@ than presented as proven effects of a practice plan.
   and putting averages and format-specific thresholds.
 - **All 9/18** does **not** average raw 9-hole scores directly with 18-hole
   scores. Gross score and putts are normalized per nine holes, e.g., 84 over
-  18 becomes a gross nine-hole equivalent of 42. FIR/GIR remain percentages
-  from pooled opportunities. Penalties and three-putts are per 18 equivalent.
+  18 becomes a gross nine-hole equivalent of 42. An 18-hole round contributes
+  **twice the hole weight** of a 9-hole round in these combined averages.
+  FIR/GIR remain percentages from pooled opportunities. Penalties and
+  three-putts are per 18 equivalent, weighted by recorded holes.
 - If the submitted round `par` or complete hole-level par is present, an
-  independent **relative-to-par per nine** descriptive number is displayed.
+  independent **relative-to-par per nine** descriptive number is displayed,
+  weighted by recorded holes.
   Missing par is excluded rather than assumed; par-relative and gross scores
   are never averaged together.
 - These are **not** course-rating, slope, weather, or handicap adjustments.
