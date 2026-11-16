@@ -182,7 +182,7 @@ function buildSummary(
   if (outings === 1) return `${base} This is one outing, not yet a trend. Practice notes and recorded metrics can guide the next session.`;
   if (outings < 4) return `${base} Early comparisons are available where the same players have data in both outings; treat small differences cautiously.`;
   if (outings < 6) return `${base} Preliminary two-versus-two comparisons are available where the recorded players overlap.`;
-  return `${base} No comparable changes have crossed the coaching thresholds. Review the current metrics and player observations.`;
+  return `${base} No team changes have crossed the coaching thresholds. Review the current metrics and player observations.`;
 }
 
 function classifySource(eventId: string | null, events: Map<string, InsightEvent["event_type"]>):
