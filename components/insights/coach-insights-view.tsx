@@ -166,7 +166,7 @@ export function CoachInsightsView({ report, teamName, seasonName }: {
                 aria-current={report.source === source ? "page" : undefined}
                 className={cn("rounded-md px-3 py-2 text-sm font-semibold transition",
                   report.source === source ? "bg-green-800 text-white" : "text-slate-600 hover:bg-white")}>
-                {source === "all" ? "All rounds" : source === "competition" ? "Matches" : "Practice"}
+                {source === "all" ? "All rounds" : source === "competition" ? "Competition" : "Practice"}
               </Link>
             ))}
           </div>
