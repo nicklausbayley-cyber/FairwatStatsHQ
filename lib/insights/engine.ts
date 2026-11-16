@@ -235,7 +235,13 @@ export function buildCoachInsights(input: CoachInsightsInput): CoachInsightsRepo
     input.holes === "all" || round.holes === input.holes
   );
   const sourceCounts = { competition: 0, practice: 0, other: 0 };
-  for (const round of byFormat) sourceCounts[classifySource(round.eventId, eventTypes)]++;
+  // The latest submission for each player/outing is the one counted in the
+  // coach-facing summary; duplicate corrections must not inflate counts.
+  for (const outing of groupOutings(byFormat)) {
+    for (const round of outing.rounds) {
+      sourceCounts[classifySource(round.eventId, eventTypes)]++;
+    }
+  }
   const rounds = byFormat.filter((round) =>
     source === "all" || classifySource(round.eventId, eventTypes) === source
   );
@@ -273,7 +279,9 @@ export function buildCoachInsights(input: CoachInsightsInput): CoachInsightsRepo
   const parRounds = outings.flatMap((outing) => outing.rounds)
     .filter((round) => round.scoreToParPerNine !== null);
   const parRelative = parRounds.length === 0 ? null : {
-    average: parRounds.reduce((sum, round) => sum + round.scoreToParPerNine!, 0) / parRounds.length,
+    average: parRounds.reduce((sum, round) =>
+      sum + round.scoreToParPerNine! * round.holes / 9, 0
+    ) / parRounds.reduce((sum, round) => sum + round.holes / 9, 0),
     rounds: parRounds.length
   };
   const lineupChanged = METRICS.some((metric) => snapshot[metric].ready && snapshot[metric].lineupChanged);
