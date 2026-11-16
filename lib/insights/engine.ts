@@ -1,12 +1,12 @@
-import { compareMetric, groupOutings, normalizeRounds, outingKey } from "./aggregate";
+import { aggregateMetric, compareMetric, groupOutings, normalizeRounds, outingKey } from "./aggregate";
 import {
   COUNTING_RELIABILITY_THRESHOLD, COUNTING_SCORES, COUNTING_WINDOW,
-  MIN_COUNTING_EVENTS, METRICS, METRIC_RULES, formatMetricValue
+  MIN_COUNTING_EVENTS, METRICS, METRIC_RULES, confidenceForOutings, formatMetricValue
 } from "./rules";
 import type {
   CoachInsight, CoachInsightsReport, InsightEvent, InsightHoleRow, InsightPlayer,
-  InsightRoundRow, MetricComparison, NormalizedRound, PracticePriority, RoundFormat,
-  TrendMetric
+  InsightRoundRow, InsightFormat, InsightSource, MetricComparison, NormalizedRound,
+  PracticePriority, RoundFormat, TrendMetric
 } from "./types";
 
 export type CoachInsightsInput = {
@@ -14,24 +14,27 @@ export type CoachInsightsInput = {
   holeRows: InsightHoleRow[];
   players: InsightPlayer[];
   events: InsightEvent[];
-  holes: RoundFormat;
+  holes: InsightFormat;
+  source?: InsightSource;
 };
 
 function rankInsights(a: CoachInsight, b: CoachInsight) {
   return b.severity - a.severity || a.id.localeCompare(b.id);
 }
 
-function describeChange(comparison: MetricComparison, holes: RoundFormat) {
+function describeChange(comparison: MetricComparison, holes: InsightFormat) {
   const { category, recentValue, baselineValue, delta } = comparison;
   if (recentValue === null || baselineValue === null || delta === null) return "";
   const rule = METRIC_RULES[category];
   const changeUnit = rule.unit === "percentage_points" ? "percentage points"
     : rule.unit === "per_18" ? "per 18-hole equivalent"
-    : rule.unit === "putts" ? `putts per ${holes}-hole round` : `strokes per ${holes}-hole round`;
+    : rule.unit === "putts"
+      ? holes === "all" ? "putts per nine-hole equivalent" : `putts per ${holes}-hole round`
+      : holes === "all" ? "strokes per nine-hole equivalent" : `strokes per ${holes}-hole round`;
   return `${rule.label} moved from ${formatMetricValue(category, baselineValue)} to ${formatMetricValue(category, recentValue)} (${Math.abs(delta).toFixed(1)} ${changeUnit} ${delta < 0 ? "lower" : "higher"}).`;
 }
 
-function trendInsight(comparison: MetricComparison, holes: RoundFormat, player?: InsightPlayer): CoachInsight | null {
+function trendInsight(comparison: MetricComparison, holes: InsightFormat, player?: InsightPlayer): CoachInsight | null {
   const { recentValue, baselineValue, delta, category, threshold } = comparison;
   if (!comparison.ready || recentValue === null || baselineValue === null || delta === null ||
     Math.abs(delta) + 1e-9 < threshold) return null;
@@ -39,16 +42,24 @@ function trendInsight(comparison: MetricComparison, holes: RoundFormat, player?:
   const positive = rule.lowerIsBetter ? delta < 0 : delta > 0;
   const playerName = player ? `${player.first_name} ${player.last_name}`.trim() : undefined;
   const title = positive ? rule.positiveTitle : rule.negativeTitle;
+  const qualifiedTitle = comparison.confidence === "early"
+    ? `Possible signal: ${title.toLowerCase()}`
+    : comparison.confidence === "preliminary" ? `Preliminary: ${title}` : title;
   const subject = player ? `${playerName}: ` : "";
-  const sample = player ? "The last three completed rounds are compared with the previous three."
-    : `The last three outings are compared with the previous three using ${comparison.evidence.playerCount} matched player${comparison.evidence.playerCount === 1 ? "" : "s"}.`;
+  const size = comparison.evidence.recentOutings;
+  const period = comparison.confidence === "early" ? "Early indication only" :
+    comparison.confidence === "preliminary" ? "Preliminary comparison" : "Established comparison";
+  const sample = player
+    ? `${period}: the most recent ${size} outing${size === 1 ? "" : "s"} compared with the preceding ${size}.`
+    : `${period}: the most recent ${size} team outing${size === 1 ? "" : "s"} compared with the preceding ${size}, using ${comparison.evidence.playerCount} player${comparison.evidence.playerCount === 1 ? "" : "s"} with recorded stats in both periods.${comparison.lineupChanged ? " The lineup differed between periods; the comparison only uses overlapping players." : ""}`;
   return {
     id: `${player?.id ?? "team"}:${holes}:${category}`,
     scope: player ? "player" : "team", category,
     direction: positive ? "positive" : "negative",
-    title: `${subject}${title}`, body: `${describeChange(comparison, holes)} ${sample}`,
+    title: `${subject}${qualifiedTitle}`, body: `${describeChange(comparison, holes)} ${sample}`,
     recommendation: positive ? rule.positiveRecommendation : rule.negativeRecommendation,
     recentValue, baselineValue, delta, severity: Math.abs(delta) / threshold,
+    confidence: comparison.confidence, lineupChanged: comparison.lineupChanged,
     playerId: player?.id, playerName,
     sampleSize: comparison.evidence.recentRoundIds.length + comparison.evidence.baselineRoundIds.length,
     evidence: comparison.evidence
@@ -141,27 +152,102 @@ export function rankPracticePriorities(insights: CoachInsight[]): PracticePriori
   })).sort((a, b) => b.severity - a.severity || a.category.localeCompare(b.category)).slice(0, 3);
 }
 
-function buildSummary(snapshot: CoachInsightsReport["snapshot"], teamInsights: CoachInsight[], holes: RoundFormat) {
+function buildSummary(
+  snapshot: CoachInsightsReport["snapshot"], teamInsights: CoachInsight[],
+  holes: InsightFormat, outings: number, lineupChanged: boolean
+) {
+  if (outings === 0) return "No completed outings yet. Enter a score to start building your team's coaching baseline.";
   const scoring = teamInsights.find((insight) => insight.category === "scoring");
-  const positive = teamInsights.filter((insight) => insight.direction === "positive" && insight.category !== "scoring").sort(rankInsights)[0];
-  const negative = teamInsights.filter((insight) => insight.direction === "negative" && insight.category !== "scoring").sort(rankInsights)[0];
+  const positive = teamInsights.filter((insight) =>
+    insight.direction === "positive" && insight.category !== "scoring"
+  ).sort(rankInsights)[0];
+  const negative = teamInsights.filter((insight) =>
+    insight.direction === "negative" && insight.category !== "scoring"
+  ).sort(rankInsights)[0];
   const sentences: string[] = [];
   if (scoring) {
-    sentences.push(`Team scoring is ${Math.abs(scoring.delta!).toFixed(1)} strokes ${scoring.delta! < 0 ? "lower" : "higher"} per ${holes}-hole round across matched players.`);
+    const unit = holes === "all" ? "per nine-hole equivalent" : `per ${holes}-hole round`;
+    sentences.push(`Scoring in the comparable group is ${Math.abs(scoring.delta!).toFixed(1)} strokes ${scoring.delta! < 0 ? "lower" : "higher"} ${unit}.`);
   }
   if (positive) sentences.push(`${positive.title}.`);
   if (negative) sentences.push(`${negative.title}; review this with the players when planning practice.`);
-  if (sentences.length > 0) return sentences.join(" ");
-  if (Object.values(snapshot).some((metric) => metric.ready)) {
-    return "No team changes have crossed the coaching thresholds. Keep recording complete stats and review any player-specific changes below.";
+  if (sentences.length > 0) {
+    const caution = outings < 4 ? "Early indication; more outings are needed to confirm a trend."
+      : outings < 6 ? "Preliminary comparison; more outings will improve confidence."
+      : "Based on the most recent recorded outings.";
+    return `${sentences.join(" ")} ${caution}${lineupChanged ? " Lineup changes may affect the team-level picture." : ""}`;
   }
-  return `Building the baseline: team trends need six completed ${holes}-hole outings and matching players with the stat recorded in each. Player trends use each player's own last six completed rounds.`;
+  const format = holes === "all" ? "nine-hole-equivalent" : `${holes}-hole`;
+  const value = snapshot.scoring.recentValue;
+  const base = value === null
+    ? "Available recorded stats are building the team's baseline."
+    : `The latest recorded ${format} scoring average is ${value.toFixed(1)}.`;
+  if (outings === 1) return `${base} This is one outing, not yet a trend. Practice notes and recorded metrics can guide the next session.`;
+  if (outings < 4) return `${base} Early comparisons are available where the same players have data in both outings; treat small differences cautiously.`;
+  if (outings < 6) return `${base} Preliminary two-versus-two comparisons are available where the recorded players overlap.`;
+  return `${base} No team changes have crossed the coaching thresholds. Review the current metrics and player observations.`;
+}
+
+function classifySource(eventId: string | null, events: Map<string, InsightEvent["event_type"]>):
+  "competition" | "practice" | "other" {
+  if (!eventId) return "practice"; // Unattached scoring is usually practice.
+  const type = events.get(eventId);
+  if (type === "match" || type === "invitational" || type === "tournament") return "competition";
+  if (type === "practice") return "practice";
+  return "other"; // Qualifiers or events without known metadata.
+}
+
+/** Evidence-first early suggestions. A recorded penalty/three-putt is a
+ * review opportunity, NOT proof that performance is deteriorating. */
+function earlyPracticePriorities(rounds: NormalizedRound[], format: InsightFormat): PracticePriority[] {
+  if (rounds.length === 0) return [];
+  const choices: Array<{
+    category: PracticePriority["category"];
+    metric: "three_putts" | "penalties";
+    title: string;
+    recommendation: string;
+  }> = [
+    { category: "putting", metric: "three_putts", title: "Putting",
+      recommendation: "Review three-putt holes and practice lag putting and speed control." },
+    { category: "course_management", metric: "penalties", title: "Course management",
+      recommendation: "Review when penalty strokes occurred and discuss safer targets and recovery choices." }
+  ];
+  return choices.flatMap((choice) => {
+    const eligible = rounds.filter((round) =>
+      choice.metric === "three_putts" ? round.threePuttsPer18 !== null : round.penaltiesPer18 !== null
+    );
+    const average = aggregateMetric(eligible, choice.metric, format);
+    if (average === null || average < 1) return [];
+    const label = choice.metric === "three_putts" ? "three-putts" : "penalty strokes";
+    return [{
+      category: choice.category, title: choice.title,
+      severity: average,
+      reason: `Early observation: ${average.toFixed(1)} ${label} per 18-hole equivalent over ${eligible.length} recorded round${eligible.length === 1 ? "" : "s"}. This is a practice review suggestion, not an established trend.`,
+      recommendation: choice.recommendation,
+      insightId: `early:${choice.metric}`, scope: "team" as const
+    }];
+  }).sort((a, b) => b.severity - a.severity);
 }
 
 /** Pure, deterministic rules: no AI, external service, or hidden season filtering. */
 export function buildCoachInsights(input: CoachInsightsInput): CoachInsightsReport {
   const { rounds: normalized, excludedIds } = normalizeRounds(input.rounds, input.holeRows);
-  const rounds = normalized.filter((round) => round.holes === input.holes);
+  const source = input.source ?? "all";
+  const eventTypes = new Map(input.events.map((event) => [event.id, event.event_type]));
+  const byFormat = normalized.filter((round) =>
+    input.holes === "all" || round.holes === input.holes
+  );
+  const sourceCounts = { competition: 0, practice: 0, other: 0 };
+  // The latest submission for each player/outing is the one counted in the
+  // coach-facing summary; duplicate corrections must not inflate counts.
+  for (const outing of groupOutings(byFormat)) {
+    for (const round of outing.rounds) {
+      sourceCounts[classifySource(round.eventId, eventTypes)]++;
+    }
+  }
+  const rounds = byFormat.filter((round) =>
+    source === "all" || classifySource(round.eventId, eventTypes) === source
+  );
   const outings = groupOutings(rounds);
   const snapshot = Object.fromEntries(METRICS.map((category) => [
     category, compareMetric(outings, category, input.holes)
@@ -176,7 +262,9 @@ export function buildCoachInsights(input: CoachInsightsInput): CoachInsightsRepo
       if (insight) playerInsights.push(insight);
     }
   }
-  playerInsights.push(...countingInsights(rounds, input.rounds, excludedIds, input.players, input.events, input.holes));
+  if (input.holes !== "all" && source !== "practice") {
+    playerInsights.push(...countingInsights(rounds, input.rounds, excludedIds, input.players, input.events, input.holes));
+  }
   const allInsights = [...teamInsights, ...playerInsights].sort(rankInsights);
   const watchPlayers = new Set<string>();
   const playerWatchlist = [...playerInsights].sort(rankInsights).filter((insight) => {
@@ -184,13 +272,37 @@ export function buildCoachInsights(input: CoachInsightsInput): CoachInsightsRepo
     watchPlayers.add(insight.playerId);
     return true;
   }).slice(0, 4);
+  const priorities = rankPracticePriorities(allInsights);
+  if (outings.length < 4) {
+    for (const candidate of earlyPracticePriorities(outings.flatMap((outing) => outing.rounds), input.holes)) {
+      if (priorities.length >= 3) break;
+      if (!priorities.some((existing) => existing.category === candidate.category)) priorities.push(candidate);
+    }
+  }
+  const parRounds = outings.flatMap((outing) => outing.rounds)
+    .filter((round) => round.scoreToParPerNine !== null);
+  const parRelative = parRounds.length === 0 ? null : {
+    average: parRounds.reduce((sum, round) =>
+      sum + round.scoreToParPerNine! * round.holes / 9, 0
+    ) / parRounds.reduce((sum, round) => sum + round.holes / 9, 0),
+    rounds: parRounds.length
+  };
+  const lineupChanged = METRICS.some((metric) => snapshot[metric].ready && snapshot[metric].lineupChanged);
+  const excludedRounds = input.rounds.filter((row) =>
+    (input.holes === "all" || row.holes === input.holes) &&
+    (source === "all" || classifySource(row.event_id, eventTypes) === source) &&
+    excludedIds.has(row.id)
+  ).length;
   return {
-    holes: input.holes, summary: buildSummary(snapshot, teamInsights, input.holes), snapshot,
+    holes: input.holes, source, confidence: confidenceForOutings(outings.length),
+    sourceCounts, parRelative,
+    summary: buildSummary(snapshot, teamInsights, input.holes, outings.length, lineupChanged),
+    snapshot,
     trendingUp: teamInsights.filter((insight) => insight.direction === "positive").sort(rankInsights).slice(0, 2),
     needsAttention: teamInsights.filter((insight) => insight.direction === "negative").sort(rankInsights).slice(0, 2),
-    playerWatchlist, practicePriorities: rankPracticePriorities(allInsights), allInsights,
+    playerWatchlist, practicePriorities: priorities, allInsights,
     completedRounds: outings.reduce((total, outing) => total + outing.rounds.length, 0),
-    excludedRounds: input.rounds.filter((row) => row.holes === input.holes && excludedIds.has(row.id)).length,
+    excludedRounds,
     teamOutings: outings.length, latestPlayedOn: outings[0]?.playedOn ?? null
   };
 }

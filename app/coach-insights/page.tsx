@@ -6,14 +6,17 @@ import { loadCoachInsights } from "../../lib/insights/load";
 
 export const dynamic = "force-dynamic";
 
-type PageProps = { searchParams?: Promise<{ holes?: string | string[] }> };
+type PageProps = { searchParams?: Promise<{ holes?: string | string[]; source?: string | string[] }> };
 
 export default async function CoachInsightsPage({ searchParams }: PageProps) {
   const currentTeam = await requireTeamStaff();
   const params = searchParams ? await searchParams : {};
   const value = Array.isArray(params.holes) ? params.holes[0] : params.holes;
-  const holes = value === "18" ? 18 : 9;
-  const state = await loadCoachInsights(currentTeam, holes);
+  const holes = value === "18" ? 18 : value === "9" ? 9 : "all";
+  const sourceValue = Array.isArray(params.source) ? params.source[0] : params.source;
+  const source = sourceValue === "competition" ? "competition" :
+    sourceValue === "practice" ? "practice" : "all";
+  const state = await loadCoachInsights(currentTeam, holes, source);
   if (state.status !== "ready") {
     return (
       <section className="space-y-6">

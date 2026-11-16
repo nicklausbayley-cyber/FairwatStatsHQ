@@ -192,6 +192,16 @@ let rows=await visiblePlayers(dual);
 assert.deepEqual(rows.map(x=>x.team_id).sort(),[fixture.teams.boys,fixture.teams.girls].sort());
 console.log("PASS: real Supabase Auth login and boys dashboard, membership-scoped RLS");
 
+const boysInsights=await page(dual,"/coach-insights");
+assert.ok(boysInsights.includes("CI Boys Varsity Golf"),"Coach Insights must use the selected boys team");
+assert.ok(boysInsights.includes("Building a baseline"),"One competition round should display early baseline");
+assert.ok(boysInsights.includes("Scoring average / 9 holes"),"Default view should use normalized 9/18 scoring");
+const competitionInsights=await page(dual,"/coach-insights?holes=all&source=competition");
+assert.ok(competitionInsights.includes("Competition rounds"),"Competition source must load");
+const practiceInsights=await page(dual,"/coach-insights?holes=all&source=practice");
+assert.ok(practiceInsights.includes("No completed outings yet"),"Practice-only view should exclude the match");
+console.log("PASS: actual Coach Insights page displays day-one boys stats and correctly filters competition/practice");
+
 const switchResult=await postSelection(dual,fixture.teams.girls);
 assert.equal(switchResult.res.status,200,JSON.stringify(switchResult.body));
 assert.equal(switchResult.body.teamId,fixture.teams.girls);
@@ -204,6 +214,12 @@ dashboard=await page(dual,"/dashboard");
 assert.match(dashboard,/CI Girls Varsity Golf/);
 assert.doesNotMatch(dashboard,/Bradley BoysOnly/);
 console.log("PASS: HTTP team switch sets cookie and changes roster/dashboard");
+const girlsInsights=await page(dual,"/coach-insights");
+assert.ok(girlsInsights.includes("CI Girls Varsity Golf"),"Girls team insights must follow the selected team");
+assert.ok(girlsInsights.includes("42.0"),"Girls team score must be calculated independently");
+// The team selector intentionally lists both authorized teams; the visible report
+// header and team-specific metric are validated above.
+console.log("PASS: switching coach team updates the real Coach Insights report");
 
 let invalid=await postSelection(dual,fixture.teams.outsider);
 assert.equal(invalid.res.status,403);
@@ -268,6 +284,10 @@ assert.deepEqual(rows.map(x=>x.team_id),[fixture.teams.boys]);
 invalid=await postSelection(dual,fixture.teams.girls);
 assert.equal(invalid.res.status,403);
 console.log("PASS: revocation blocks stale-cookie HTTP access and RLS immediately");
+const revokedInsights=await page(dual,"/coach-insights");
+assert.ok(revokedInsights.includes("CI Boys Varsity Golf"),"Revoked selection should fall back to boys insights");
+assert.ok(!revokedInsights.includes("CI Girls Varsity Golf"),"Revoked girls insights must be unavailable");
+console.log("PASS: revoked coach's Coach Insights page falls back to authorized boys team");
 
 const lastTeam=await request(platform,"/api/onboarding",{
   method:"POST",body:JSON.stringify({...revokePayload,teamId:fixture.teams.boys})

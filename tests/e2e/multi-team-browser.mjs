@@ -16,8 +16,8 @@ const require=createRequire(import.meta.url);
 const {chromium}=require(modulePath);
 const root="http://127.0.0.1:3000";
 const browser=await chromium.launch({headless:true, args:["--no-sandbox"]});
-const context=await browser.newContext({viewport:{width:1280,height:900}});
-const page=await context.newPage();
+let context=await browser.newContext({viewport:{width:1280,height:900}});
+let page=await context.newPage();
 page.setDefaultTimeout(30000);
 
 async function login(person) {
@@ -85,6 +85,13 @@ try {
 
   await page.getByRole("button",{name:"Sign Out"}).click();
   await page.waitForURL(url=>url.pathname==="/login",{timeout:45000});
+  // The removed coach is a different person from the platform administrator.
+  // Verify their next login in a fresh browser profile rather than retaining
+  // any cross-user localStorage/cookies from the admin's test session.
+  await context.close();
+  context=await browser.newContext({viewport:{width:1280,height:900}});
+  page=await context.newPage();
+  page.setDefaultTimeout(30000);
   await login("dual");
   await assertRoster("CI Boys Varsity Golf","Bradley","Gemma");
   assert.equal(await page.getByRole("combobox",{name:"Active golf team"}).count(),0,

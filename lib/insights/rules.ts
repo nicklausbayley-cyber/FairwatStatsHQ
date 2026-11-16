@@ -1,6 +1,17 @@
-import type { RoundFormat, TrendMetric } from "./types";
+import type { InsightConfidence, InsightFormat, TrendMetric } from "./types";
 
 export const COMPARISON_OUTINGS = 3;
+
+export function confidenceForOutings(count: number): InsightConfidence {
+  if (count >= 6) return "established";
+  if (count >= 4) return "preliminary";
+  if (count >= 2) return "early";
+  return "baseline";
+}
+
+export function comparisonWindowSize(count: number) {
+  return count >= 6 ? COMPARISON_OUTINGS : count >= 4 ? 2 : 1;
+}
 export const COUNTING_SCORES = 4;
 export const COUNTING_WINDOW = 6;
 export const MIN_COUNTING_EVENTS = 3;
@@ -13,7 +24,7 @@ export const METRICS: TrendMetric[] = [
 export const METRIC_RULES: Record<TrendMetric, {
   label: string;
   lowerIsBetter: boolean;
-  threshold: (holes: RoundFormat) => number;
+  threshold: (holes: InsightFormat) => number;
   unit: "strokes" | "percentage_points" | "putts" | "per_18";
   positiveTitle: string;
   negativeTitle: string;
@@ -23,7 +34,7 @@ export const METRIC_RULES: Record<TrendMetric, {
   scoring: {
     label: "Scoring average",
     lowerIsBetter: true,
-    threshold: (holes) => holes === 9 ? 1 : 2,
+    threshold: (holes) => holes === 18 ? 2 : 1,
     unit: "strokes",
     positiveTitle: "Scoring is improving",
     negativeTitle: "Scoring needs attention",
@@ -53,7 +64,7 @@ export const METRIC_RULES: Record<TrendMetric, {
   putting: {
     label: "Putts per round",
     lowerIsBetter: true,
-    threshold: (holes) => holes === 9 ? 0.75 : 1.5,
+    threshold: (holes) => holes === 18 ? 1.5 : 0.75,
     unit: "putts",
     positiveTitle: "Fewer putts per round",
     negativeTitle: "Putting needs attention",

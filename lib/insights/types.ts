@@ -1,6 +1,9 @@
 import type { Database } from "../supabase/types";
 
 export type RoundFormat = 9 | 18;
+export type InsightFormat = RoundFormat | "all";
+export type InsightSource = "all" | "competition" | "practice";
+export type InsightConfidence = "baseline" | "early" | "preliminary" | "established";
 export type TrendMetric =
   | "scoring"
   | "gir"
@@ -12,7 +15,7 @@ export type TrendMetric =
 export type InsightRoundRow = Pick<
   Database["public"]["Tables"]["rounds"]["Row"],
   | "id" | "team_id" | "season_id" | "player_id" | "event_id"
-  | "played_on" | "created_at" | "holes" | "score" | "putts"
+  | "played_on" | "created_at" | "holes" | "score" | "par" | "putts"
   | "fairways_hit" | "fairways_possible" | "greens_in_regulation"
   | "gir_possible" | "penalties" | "three_putts"
 >;
@@ -40,6 +43,8 @@ export type NormalizedRound = {
   createdAt: string;
   holes: RoundFormat;
   score: number;
+  scorePerNine: number;
+  scoreToParPerNine: number | null;
   putts: number | null;
   gir: { hit: number; possible: number } | null;
   fir: { hit: number; possible: number } | null;
@@ -72,6 +77,8 @@ export type MetricComparison = {
   threshold: number;
   unit: "strokes" | "percentage_points" | "putts" | "per_18";
   ready: boolean;
+  confidence: InsightConfidence;
+  lineupChanged: boolean;
   reason: string | null;
   evidence: InsightEvidence;
 };
@@ -88,6 +95,8 @@ export type CoachInsight = {
   baselineValue: number | null;
   delta: number | null;
   severity: number;
+  confidence?: InsightConfidence;
+  lineupChanged?: boolean;
   playerId?: string;
   playerName?: string;
   sampleSize: number;
@@ -105,7 +114,11 @@ export type PracticePriority = {
 };
 
 export type CoachInsightsReport = {
-  holes: RoundFormat;
+  holes: InsightFormat;
+  source: InsightSource;
+  confidence: InsightConfidence;
+  sourceCounts: { competition: number; practice: number; other: number };
+  parRelative: { average: number; rounds: number } | null;
   summary: string;
   snapshot: Record<TrendMetric, MetricComparison>;
   trendingUp: CoachInsight[];
