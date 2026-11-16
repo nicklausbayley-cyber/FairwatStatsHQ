@@ -4,6 +4,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CoachInsightsView } from "../components/insights/coach-insights-view";
 import { buildCoachInsights, type CoachInsightsInput } from "../lib/insights/engine";
+import { aggregateMetric, normalizeRounds } from "../lib/insights/aggregate";
+import { METRIC_RULES } from "../lib/insights/rules";
 import type { InsightRoundRow, InsightFormat, InsightSource } from "../lib/insights/types";
 
 const players = [
@@ -172,4 +174,27 @@ test("Coach Insights renders the progressive stage, filters, and evidence labels
   assert.match(html,/Relative to par/);
   assert.match(html,/coach-insights\?holes=9/);
   assert.match(html,/coach-insights\?holes=18/);
+});
+
+test("mixed-format per-nine/per-18 means weight the observed holes, not the number of rounds",()=>{
+  const rows=[
+    round(1,{holes:9,score:45,par:36,putts:18,three_putts:1,penalties:1}),
+    round(2,{holes:18,score:80,par:72,putts:30,three_putts:1,penalties:0,gir_possible:18})
+  ];
+  const normalized=normalizeRounds(rows,[]).rounds;
+  assert.ok(Math.abs(aggregateMetric(normalized,"scoring","all") - 125/3) < 1e-9);
+  assert.ok(Math.abs(aggregateMetric(normalized,"putting","all") - 48/3) < 1e-9);
+  assert.ok(Math.abs(aggregateMetric(normalized,"penalties","all") - 2/3) < 1e-9);
+  assert.ok(Math.abs(report(rows,"all").parRelative!.average - 17/3) < 1e-9);
+  assert.equal(METRIC_RULES.scoring.threshold("all"),1);
+  assert.equal(METRIC_RULES.putting.threshold("all"),0.75);
+});
+
+test("duplicate corrections do not inflate practice/competition round counts",()=>{
+  const old=round(1,{score:55,created_at:"2026-05-01T17:00:00Z"});
+  const corrected=round(1,{id:"corrected",score:44,created_at:"2026-05-01T19:00:00Z"});
+  const r=report([old,corrected]);
+  assert.equal(r.completedRounds,1);
+  assert.deepEqual(r.sourceCounts,{competition:1,practice:0,other:0});
+  assert.equal(r.snapshot.scoring.recentValue,44);
 });
