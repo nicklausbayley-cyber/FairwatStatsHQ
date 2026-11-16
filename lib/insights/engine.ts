@@ -42,6 +42,9 @@ function trendInsight(comparison: MetricComparison, holes: InsightFormat, player
   const positive = rule.lowerIsBetter ? delta < 0 : delta > 0;
   const playerName = player ? `${player.first_name} ${player.last_name}`.trim() : undefined;
   const title = positive ? rule.positiveTitle : rule.negativeTitle;
+  const qualifiedTitle = comparison.confidence === "early"
+    ? `Possible signal: ${title.toLowerCase()}`
+    : comparison.confidence === "preliminary" ? `Preliminary: ${title}` : title;
   const subject = player ? `${playerName}: ` : "";
   const size = comparison.evidence.recentOutings;
   const period = comparison.confidence === "early" ? "Early indication only" :
@@ -53,7 +56,7 @@ function trendInsight(comparison: MetricComparison, holes: InsightFormat, player
     id: `${player?.id ?? "team"}:${holes}:${category}`,
     scope: player ? "player" : "team", category,
     direction: positive ? "positive" : "negative",
-    title: `${subject}${title}`, body: `${describeChange(comparison, holes)} ${sample}`,
+    title: `${subject}${qualifiedTitle}`, body: `${describeChange(comparison, holes)} ${sample}`,
     recommendation: positive ? rule.positiveRecommendation : rule.negativeRecommendation,
     recentValue, baselineValue, delta, severity: Math.abs(delta) / threshold,
     confidence: comparison.confidence, lineupChanged: comparison.lineupChanged,
