@@ -19,7 +19,7 @@ function round(day: number, player = "p1", patch: Partial<InsightRoundRow> = {})
   return {
     id: `${player}-day${day}`, team_id: "team-a", season_id: "season-a",
     player_id: player, event_id: `event${day}`, played_on: date,
-    created_at: `${date}T18:00:00Z`, holes: 9, score: 45, putts: 18,
+    created_at: `${date}T18:00:00Z`, holes: 9, score: 45, par: 36, putts: 18,
     fairways_hit: 4, fairways_possible: 7, greens_in_regulation: 4,
     gir_possible: 9, penalties: 1, three_putts: 1, ...patch
   };
